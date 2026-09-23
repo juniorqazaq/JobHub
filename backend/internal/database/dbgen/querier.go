@@ -11,7 +11,16 @@ import (
 )
 
 type Querier interface {
+	AcquireSourceIngestionLock(ctx context.Context, source string) error
+	CompleteIngestionRun(ctx context.Context, arg CompleteIngestionRunParams) error
+	CountPublicJobs(ctx context.Context, arg CountPublicJobsParams) (int64, error)
+	CreateIngestionRun(ctx context.Context, arg CreateIngestionRunParams) (pgtype.UUID, error)
 	DatabaseTime(ctx context.Context) (pgtype.Timestamptz, error)
+	FailIngestionRun(ctx context.Context, arg FailIngestionRunParams) error
+	GetPublicJob(ctx context.Context, arg GetPublicJobParams) (JobhubJob, error)
+	ImportedJobExists(ctx context.Context, arg ImportedJobExistsParams) (bool, error)
+	ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]JobhubJob, error)
+	UpsertImportedJob(ctx context.Context, arg UpsertImportedJobParams) (pgtype.UUID, error)
 }
 
 var _ Querier = (*Queries)(nil)

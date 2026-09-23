@@ -15,3 +15,9 @@ to the Supabase Data API's exposed schemas until Phase 2 defines explicit RLS
 policies. RLS without a policy denies Data API access while database owners and
 roles with `BYPASSRLS` retain server-side access. Add ownership-based policies
 alongside any future client access; never use a permissive catch-all policy.
+
+Migration `000002_create_vacancy_supply` follows this rule for source-aware jobs,
+company-source identities and ingestion runs. Its seeded `jooble:kz` source keeps
+`production_permissions_confirmed=false`; do not change that flag until the
+provider's API-specific storage, redistribution, retention, attribution and
+removal permissions are confirmed.

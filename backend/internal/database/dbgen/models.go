@@ -3,3 +3,96 @@
 //   sqlc v1.30.0
 
 package dbgen
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type JobhubCompany struct {
+	ID        pgtype.UUID
+	Name      string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type JobhubCompanySource struct {
+	ID           pgtype.UUID
+	CompanyID    pgtype.UUID
+	Source       string
+	ExternalID   string
+	SourceName   pgtype.Text
+	SourceUrl    pgtype.Text
+	FirstSeenAt  pgtype.Timestamptz
+	LastSeenAt   pgtype.Timestamptz
+	LastSyncedAt pgtype.Timestamptz
+}
+
+// Server-side provider import audit metadata. Never store provider credentials here.
+type JobhubIngestionRun struct {
+	ID              pgtype.UUID
+	Source          string
+	Status          string
+	SearchCount     int32
+	RequestCount    int32
+	FetchedCount    int32
+	NormalizedCount int32
+	InsertedCount   int32
+	UpdatedCount    int32
+	SkippedCount    int32
+	ErrorCode       pgtype.Text
+	ErrorMessage    pgtype.Text
+	StartedAt       pgtype.Timestamptz
+	FinishedAt      pgtype.Timestamptz
+}
+
+type JobhubJob struct {
+	ID                  pgtype.UUID
+	Source              string
+	ExternalID          pgtype.Text
+	SourceUrl           pgtype.Text
+	UpstreamSourceName  pgtype.Text
+	CompanyID           pgtype.UUID
+	CompanySourceID     pgtype.UUID
+	CompanyNameRaw      pgtype.Text
+	Title               string
+	LocationRaw         pgtype.Text
+	Description         pgtype.Text
+	DescriptionKind     string
+	EmploymentTypeRaw   pgtype.Text
+	SalaryRaw           pgtype.Text
+	SalaryMin           pgtype.Numeric
+	SalaryMax           pgtype.Numeric
+	SalaryCurrency      pgtype.Text
+	SalaryPeriod        pgtype.Text
+	SalaryGross         pgtype.Bool
+	SalaryIsEstimated   pgtype.Bool
+	ApplicationMethod   string
+	ApplyUrl            pgtype.Text
+	SourceStatus        string
+	PublicationStatus   pgtype.Text
+	FirstSeenAt         pgtype.Timestamptz
+	LastSeenAt          pgtype.Timestamptz
+	LastSyncedAt        pgtype.Timestamptz
+	FreshUntil          pgtype.Timestamptz
+	ExternalCreatedAt   pgtype.Timestamptz
+	ExternalPublishedAt pgtype.Timestamptz
+	ExternalUpdatedAt   pgtype.Timestamptz
+	ExternalUpdatedRaw  pgtype.Text
+	ExternalExpiresAt   pgtype.Timestamptz
+	ExternalArchivedAt  pgtype.Timestamptz
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
+type JobhubJobSource struct {
+	Source      string
+	Provider    string
+	Market      pgtype.Text
+	DisplayName string
+	Enabled     bool
+	// Must remain false until API-specific storage, redistribution, retention, attribution, and removal permissions are confirmed.
+	ProductionPermissionsConfirmed bool
+	AttributionText                pgtype.Text
+	CreatedAt                      pgtype.Timestamptz
+	UpdatedAt                      pgtype.Timestamptz
+}
