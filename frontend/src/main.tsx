@@ -1,18 +1,21 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
-import "./styles.css";
-const client = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
-});
+import { AppProviders } from "./app/AppProviders";
+import "@fontsource-variable/manrope";
+import "@fontsource-variable/source-sans-3";
+import "./styles/index.css";
+import "./components/ui/ui.css";
+import "./pages/component-showcase.css";
+import "./styles/marketplace.css";
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryClientProvider client={client}>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AppProviders>
         <App />
-      </BrowserRouter>
-    </QueryClientProvider>
+      </AppProviders>
+    </BrowserRouter>
   </React.StrictMode>,
 );
