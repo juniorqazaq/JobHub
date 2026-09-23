@@ -1,0 +1,40 @@
+import type { JobsRepository } from "../repositories/JobsRepository";
+import type { JobSearchParams, JobSearchResponse, JobSummary } from "../models/job";
+import { apiClient } from "../client";
+import type { JobDto, JobSearchResponseDto } from "./dto/jobDto";
+import { mapJobDto } from "./jobMappers";
+
+export class HttpJobsRepository implements JobsRepository {
+  async search(params: JobSearchParams): Promise<JobSearchResponse> {
+    const response = await apiClient.get<JobSearchResponseDto>("/jobs", {
+      params: {
+        q: params.query,
+        location: params.location,
+        sort: params.sort,
+        page: params.page,
+        page_size: params.pageSize,
+      },
+    });
+
+    return {
+      items: response.data.items.map(mapJobDto),
+      page: response.data.page,
+      pageSize: response.data.page_size,
+      total: response.data.total,
+      totalPages: response.data.total_pages,
+    };
+  }
+
+  async getById(id: string): Promise<JobSummary> {
+    const response = await apiClient.get<JobDto>(`/jobs/${id}`);
+    return mapJobDto(response.data);
+  }
+
+  async save(id: string): Promise<void> {
+    await apiClient.put(`/jobs/${id}/saved`);
+  }
+
+  async unsave(id: string): Promise<void> {
+    await apiClient.delete(`/jobs/${id}/saved`);
+  }
+}
