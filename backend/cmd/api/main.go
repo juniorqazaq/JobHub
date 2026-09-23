@@ -8,6 +8,7 @@ import (
 	"jobhub-ai/backend/internal/config"
 	"jobhub-ai/backend/internal/database"
 	"jobhub-ai/backend/internal/handlers"
+	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/services"
 	"log/slog"
 	"net/http"
@@ -41,7 +42,8 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
-	router := handlers.NewRouter(services.NewHealthService(pool), logger, cfg.FrontendOrigin)
+	jobStore := jobs.NewPostgresStore(pool, cfg.Environment == "production")
+	router := handlers.NewRouter(services.NewHealthService(pool), logger, cfg.FrontendOrigin, jobStore)
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return err
 	}
