@@ -57,3 +57,22 @@ func TestLoadRejectsPreparedStatementCacheForTransactionPooler(t *testing.T) {
 		t.Fatal("expected transaction pooler with statement cache to fail")
 	}
 }
+
+func TestLoadJoobleEnforcesPOCBudget(t *testing.T) {
+	t.Setenv("JOOBLE_API_KEY", "test-key")
+	t.Setenv("JOOBLE_API_BASE_URL", "https://kz.jooble.org/api")
+	t.Setenv("JOOBLE_MAX_REQUESTS", "50")
+	t.Setenv("JOOBLE_RESULTS_PER_PAGE", "10")
+	t.Setenv("JOOBLE_SEARCHES", "Go|Казахстан;бухгалтер|Казахстан")
+	cfg, err := LoadJooble()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxRequests != 50 || len(cfg.Searches) != 2 {
+		t.Fatalf("unexpected Jooble config: %+v", cfg)
+	}
+	t.Setenv("JOOBLE_MAX_REQUESTS", "51")
+	if _, err := LoadJooble(); err == nil {
+		t.Fatal("expected request budget above 50 to fail")
+	}
+}

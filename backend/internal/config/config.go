@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
 type Config struct {
@@ -14,6 +16,20 @@ type Config struct {
 	DatabaseMigrationURL string
 	PGXQueryExecMode     string
 	FrontendOrigin       string
+}
+
+type JoobleSearch struct {
+	Keywords string
+	Location string
+}
+
+type JoobleConfig struct {
+	APIKey         string
+	BaseURL        string
+	MaxRequests    int
+	ResultsPerPage int
+	FreshFor       time.Duration
+	Searches       []JoobleSearch
 }
 
 func Load() (Config, error) {
@@ -53,6 +69,66 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("PGX_QUERY_EXEC_MODE must be exec or simple_protocol for a transaction pooler on port 6543")
 	}
 	return c, nil
+}
+
+func LoadJooble() (JoobleConfig, error) {
+	maxRequests, err := strconv.Atoi(value("JOOBLE_MAX_REQUESTS", "10"))
+	if err != nil || maxRequests < 1 || maxRequests > 50 {
+		return JoobleConfig{}, fmt.Errorf("JOOBLE_MAX_REQUESTS must be between 1 and 50")
+	}
+	resultsPerPage, err := strconv.Atoi(value("JOOBLE_RESULTS_PER_PAGE", "10"))
+	if err != nil || resultsPerPage < 1 || resultsPerPage > 20 {
+		return JoobleConfig{}, fmt.Errorf("JOOBLE_RESULTS_PER_PAGE must be between 1 and 20")
+	}
+	freshFor, err := time.ParseDuration(value("JOOBLE_FRESH_FOR", "72h"))
+	if err != nil || freshFor < time.Hour || freshFor > 7*24*time.Hour {
+		return JoobleConfig{}, fmt.Errorf("JOOBLE_FRESH_FOR must be between 1h and 168h")
+	}
+	baseURL := strings.TrimRight(value("JOOBLE_API_BASE_URL", "https://kz.jooble.org/api"), "/")
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || parsedURL.User != nil {
+		return JoobleConfig{}, fmt.Errorf("JOOBLE_API_BASE_URL must be an HTTP(S) URL without credentials, query, or fragment")
+	}
+	apiKey := strings.TrimSpace(os.Getenv("JOOBLE_API_KEY"))
+	if apiKey == "" {
+		return JoobleConfig{}, fmt.Errorf("JOOBLE_API_KEY is required for the Jooble importer")
+	}
+	searches, err := parseJoobleSearches(value("JOOBLE_SEARCHES", "программист|Казахстан;бухгалтер|Казахстан;менеджер по продажам|Казахстан"))
+	if err != nil {
+		return JoobleConfig{}, err
+	}
+	if len(searches) > maxRequests {
+		return JoobleConfig{}, fmt.Errorf("JOOBLE_SEARCHES requires more requests than JOOBLE_MAX_REQUESTS allows")
+	}
+	return JoobleConfig{
+		APIKey:         apiKey,
+		BaseURL:        baseURL,
+		MaxRequests:    maxRequests,
+		ResultsPerPage: resultsPerPage,
+		FreshFor:       freshFor,
+		Searches:       searches,
+	}, nil
+}
+
+func parseJoobleSearches(raw string) ([]JoobleSearch, error) {
+	parts := strings.Split(raw, ";")
+	if len(parts) == 0 || len(parts) > 5 {
+		return nil, fmt.Errorf("JOOBLE_SEARCHES must contain between 1 and 5 searches")
+	}
+	searches := make([]JoobleSearch, 0, len(parts))
+	for _, part := range parts {
+		fields := strings.Split(part, "|")
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("JOOBLE_SEARCHES entries must use keywords|location")
+		}
+		keywords := strings.TrimSpace(fields[0])
+		location := strings.TrimSpace(fields[1])
+		if keywords == "" || location == "" {
+			return nil, fmt.Errorf("JOOBLE_SEARCHES keywords and location must not be blank")
+		}
+		searches = append(searches, JoobleSearch{Keywords: keywords, Location: location})
+	}
+	return searches, nil
 }
 
 func validDatabaseURL(raw string) bool {

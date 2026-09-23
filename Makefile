@@ -1,4 +1,4 @@
-.PHONY: local-up local-down migrate-local migrate-staging
+.PHONY: local-up local-down migrate-local migrate-staging import-jooble
 
 local-up:
 	docker compose --profile local up --build
@@ -11,3 +11,6 @@ migrate-local:
 
 migrate-staging:
 	./scripts/migrate-remote.sh up
+
+import-jooble:
+	@set -a; . ./.env; set +a; cd backend && go run ./cmd/import-jooble
