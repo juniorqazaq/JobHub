@@ -1,91 +1,52 @@
 # JobHub AI
 
-A modular job search aggregator designed to bring legal public job sources, resume matching, and personalized recommendations into one workspace.
+JobHub AI — веб-приложение для поиска вакансий в Казахстане.
 
-**Current scope: MVP 0 Stage B — bounded Jooble Kazakhstan vacancy-supply proof of concept.** Local development uses Docker PostgreSQL; staging and production can use Supabase Postgres. The Go API remains the application backend. Jooble is not an approved production source until its API-specific storage, redistribution, retention, attribution, and removal permissions are confirmed.
+Текущий этап: **MVP 0**. Проект умеет импортировать ограниченное количество вакансий из Jooble Kazakhstan, сохранять их в PostgreSQL, не создавать дубликаты и показывать реальные вакансии во frontend-маркетплейсе.
 
-## Included
+Jooble сейчас используется только как proof of concept. Для production его нельзя считать одобренным источником, пока не подтверждены права на хранение, показ, переиспользование, удаление и атрибуцию вакансий.
 
-- React + TypeScript + Vite frontend, Tailwind CSS, React Router, Axios, and TanStack Query. Zustand is installed for future local state; no artificial store is needed yet.
-- Go + Gin API with validated environment configuration, structured JSON logs, graceful shutdown, HTTP timeouts, explicit CORS origin, security headers, and consistent JSON errors.
-- PostgreSQL 16, pgx connection pool, bounded database startup/readiness checks.
-- Profile-based Docker Compose with a complete local PostgreSQL stack and an API-only profile for an external PostgreSQL URL.
-- golang-migrate baseline and sqlc configuration with generated pgx/v5 code.
-- Tests for configuration, health responses, database failure propagation, and context cancellation.
+## Стек
 
-## Architecture and structure
+- Frontend: React, TypeScript, Vite, TanStack Query, React Router, i18next, React Hook Form, Zod, Lucide.
+- Backend: Go, Gin, pgx, sqlc, golang-migrate.
+- База данных: PostgreSQL локально через Docker, Supabase Postgres для staging/production.
+- Импорт вакансий: server-side Jooble importer. API-ключи не попадают в браузер.
 
-```text
-Browser → Vite /api proxy → Gin handler → HealthService → pgx pool → PostgreSQL
-                                            ↑
-                                  golang-migrate baseline
+## Что уже есть
 
-PostgreSQL = local Docker (development) or Supabase Postgres (staging/production)
+- Публичный API:
+  - `GET /api/v1/health`
+  - `GET /api/v1/jobs`
+  - `GET /api/v1/jobs/:id`
+- Схема БД с поддержкой разных источников вакансий.
+- Дедупликация импортированных вакансий через `UNIQUE(source, external_id)`.
+- Атомарный импорт с логированием статистики.
+- Внешние вакансии открываются только через external CTA.
+- Frontend: главная страница, список вакансий, детальная страница, поиск, сортировка, loading/empty/error states.
+- i18n: казахский, русский, английский.
 
-jobhub-ai/                         # repository root (current directory)
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── api/                   # Axios client and health request
-│   │   ├── components/
-│   │   ├── features/
-│   │   ├── hooks/
-│   │   ├── layouts/
-│   │   ├── pages/                 # foundation status screen
-│   │   ├── store/
-│   │   ├── types/
-│   │   ├── utils/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   └── styles.css
-│   ├── index.html
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── backend/
-│   ├── cmd/api/main.go
-│   ├── internal/
-│   │   ├── config/
-│   │   ├── database/dbgen/         # generated; do not hand-edit
-│   │   ├── handlers/
-│   │   ├── middleware/
-│   │   ├── models/
-│   │   ├── repositories/
-│   │   ├── services/
-│   │   ├── integrations/
-│   │   ├── dto/
-│   │   ├── utils/
-│   │   └── validation/
-│   ├── migrations/
-│   ├── sql/queries/health.sql
-│   ├── sqlc.yaml
-│   ├── go.mod
-│   ├── go.sum
-│   ├── Dockerfile
-│   └── .dockerignore
-├── docker-compose.yml
-├── Makefile
-├── scripts/migrate-remote.sh
-├── .env.example
-├── .gitignore
-└── README.md
-```
+## Быстрый запуск локально
 
-Empty directories are tracked with `.gitkeep` for subsequent phases. Handlers depend on service interfaces; database access remains outside handlers. The baseline creates the `jobhub` schema only, leaving domain tables for later migrations. The generated timestamp query validates the sqlc toolchain; readiness uses pgx `Ping` directly.
+Нужно установить:
 
-## Quick start
+- Docker + Docker Compose v2
+- Go 1.25+
+- Node.js 22.12+ и npm
 
-Prerequisites: Docker with Compose v2, Node.js 22.12+ (or supported newer version), and npm. Go 1.25+ is needed only to develop the API locally.
-
-From the repository root:
+Создать локальный `.env`:
 
 ```sh
 cp .env.example .env
+```
+
+Запустить PostgreSQL, миграции и backend:
+
+```sh
 make local-up
 ```
 
-In another terminal:
+Запустить frontend:
 
 ```sh
 cd frontend
@@ -93,219 +54,147 @@ npm ci
 npm run dev
 ```
 
-Open [the frontend](http://localhost:5173). The backend is at [the health endpoint](http://localhost:8080/api/v1/health).
+Открыть:
 
-The `local` profile starts PostgreSQL, waits for its health check, applies migrations, then starts the API. A successful migration container exit is expected. The frontend runs locally with Vite; Compose provides the API and database.
+- Frontend: http://localhost:5173
+- Backend health check: http://localhost:8080/api/v1/health
+
+Остановить локальные сервисы:
 
 ```sh
-curl -i http://localhost:8080/api/v1/health
-docker compose ps -a
-docker compose --profile local logs backend-local migrate
+make local-down
 ```
 
-Stop with `make local-down`. The named `postgres_data` volume survives container restarts and normal `down`. **`docker compose --profile local down -v` deletes local database data.**
+## Запуск backend вручную
 
-## Configuration
-
-Copy `.env.example`; never commit `.env`. Compose reads the root `.env` automatically. Vite reads it from the repository root but exposes only `VITE_` variables to client code. The Go process uses actual environment variables and does not implicitly read dotenv files.
-
-| Variable | Purpose |
-| --- | --- |
-| `APP_ENV` | `development`, `test`, `staging`, or `production`; production disables Gin debug mode |
-| `PORT` | API host port; also the listener port when running Go locally |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Compose database credentials and database name |
-| `POSTGRES_PORT` | Local PostgreSQL published port, default 5432 |
-| `DATABASE_URL` | Main runtime PostgreSQL connection string |
-| `DATABASE_MIGRATION_URL` | Optional direct/session URL used only by migration commands; falls back to `DATABASE_URL` |
-| `PGX_QUERY_EXEC_MODE` | `cache_statement` for direct/session; `exec` for transaction pooling; `simple_protocol` is an available fallback |
-| `FRONTEND_ORIGIN` | Exact allowed browser origin, default `http://localhost:5173` |
-| `VITE_API_PROXY_TARGET` | Vite server's API proxy destination, default `http://localhost:8080` |
-| `JOOBLE_API_KEY` | Server-only Kazakhstan regional API key; required only by the importer and never exposed as `VITE_*` |
-| `JOOBLE_API_BASE_URL` | Kazakhstan regional API base, default `https://kz.jooble.org/api` |
-| `JOOBLE_MAX_REQUESTS` | Hard per-process POC budget, 1–50; default 10 and never permitted above 50 |
-| `JOOBLE_RESULTS_PER_PAGE` | Small POC page size, 1–20; default 10 |
-| `JOOBLE_FRESH_FOR` | Local display freshness window, 1–168 hours; a JobHub policy, not a provider expiry signal |
-| `JOOBLE_SEARCHES` | One to five `keywords|location` searches separated by semicolons; one page per search |
-
-The local Compose profile builds its container URL with hostname `postgres`; the example root URL uses `localhost` for a Go process running on the host. Both use `sslmode=disable`. Supabase URLs must use `sslmode=require`. URLs pin `search_path=public` so migration tracking stays in a stable schema. URL-encode reserved characters in passwords. Changing `POSTGRES_*` does not change accounts in an already initialized local volume.
-
-If changing `PORT`, also update `VITE_API_PROXY_TARGET`. If changing the Vite port, update `FRONTEND_ORIGIN`. No JWT secret is needed in MVP 0; the Jooble key is needed only for the explicit importer command. The example database password is for local development only. Production deployment requires separate secret management, TLS, and deployment hardening.
-
-## Run the API locally
-
-Start infrastructure and apply migrations:
+Если нужно запустить Go backend без Docker-контейнера backend:
 
 ```sh
 docker compose --profile local up -d postgres
 make migrate-local
-```
 
-Export your trusted local configuration from the repository root, then run Go:
-
-```sh
 set -a
 . ./.env
 set +a
+
 cd backend
-go mod download
 go run ./cmd/api
 ```
 
-Do not run the Compose backend and local backend on the same port. The API fails fast when configuration or the database connection is invalid. It stops accepting requests and closes the pool on SIGINT/SIGTERM.
+Не запускайте Docker backend и ручной Go backend на одном порту одновременно.
 
-## Migrations
+## Импорт вакансий Jooble
 
-All schema changes belong in numbered `up`/`down` SQL migrations. Never edit a migration already deployed. The baseline has no user or job tables.
-
-The local profile applies pending migrations on startup. For an explicit rerun:
-
-```sh
-make migrate-local
-```
-
-For local CLI use (run from `backend`, with `DATABASE_URL` exported):
-
-```sh
-go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.20.1
-migrate -path migrations -database "$DATABASE_URL" up
-migrate -path migrations -database "$DATABASE_URL" version
-# Development rollback of one migration; review its effects first:
-migrate -path migrations -database "$DATABASE_URL" down 1
-# Create a later-phase migration:
-migrate create -ext sql -dir migrations -seq create_users
-```
-
-The pinned migration CLI requires Go 1.25.11 or newer; Go automatically downloads a compatible toolchain when needed.
-
-Ensure `$(go env GOPATH)/bin` is in your PATH after installing Go tools. The baseline rollback uses `RESTRICT` so it cannot silently delete populated application objects. If a migration fails and the database is marked dirty, inspect and repair the schema before setting any migration version; do not blindly force it.
-
-For a remote staging database, put a direct or session-mode URL in the untracked root `.env` (or export it in the shell) and run:
-
-```sh
-export DATABASE_MIGRATION_URL='postgresql://postgres.<project-ref>:<PASSWORD>@<pooler-host>:5432/postgres?sslmode=require&search_path=public'
-make migrate-staging
-```
-
-`scripts/migrate-remote.sh` uses the pinned migration image and refuses port `6543`. Schema migrations require a direct or session connection because transaction pooling does not preserve the session features migration tools may need. If `DATABASE_MIGRATION_URL` is unset, the script falls back to `DATABASE_URL`.
-
-## Supabase setup
-
-Create separate Supabase projects for staging and production. In each project's **Connect** dialog, copy the exact URL instead of constructing the pooler host yourself. Keep real URLs in your deployment platform's secret store or an untracked local `.env`; never put them in source control.
-
-Choose the connection as follows:
-
-| Connection | Runtime use | Port | pgx mode |
-| --- | --- | --- | --- |
-| Direct | Preferred for a persistent Go service when its network supports IPv6, or when the Supabase IPv4 add-on is enabled | `5432` | `cache_statement` |
-| Shared pooler, session mode | Persistent Go service on an IPv4-only host | `5432` | `cache_statement` |
-| Shared pooler, transaction mode | Highly scaled or short-lived runtimes only | `6543` | `exec` |
-
-Supabase direct database hosts are IPv6 by default. The shared pooler is reachable over IPv4; use its session mode when the deployment platform cannot reach IPv6. Transaction mode does not support prepared statements or persistent session state, so `PGX_QUERY_EXEC_MODE=exec` disables pgx's prepared-statement cache while retaining the extended protocol. Migrations must still use a direct or session URL in `DATABASE_MIGRATION_URL`.
-
-Example staging runtime configuration, using placeholders only:
+Реальный ключ хранится только в локальном `.env`:
 
 ```dotenv
-APP_ENV=staging
-DATABASE_URL=postgresql://postgres.<project-ref>:<PASSWORD>@<pooler-host>:5432/postgres?sslmode=require&search_path=public
-DATABASE_MIGRATION_URL=postgresql://postgres:<PASSWORD>@db.<project-ref>.supabase.co:5432/postgres?sslmode=require&search_path=public
-PGX_QUERY_EXEC_MODE=cache_statement
+JOOBLE_API_KEY=<your-jooble-kazakhstan-api-key>
 ```
 
-If direct IPv6 is unavailable to the machine running migrations, use the shared session pooler URL on port `5432` for `DATABASE_MIGRATION_URL`. After applying migrations, start an API container against the external database with:
-
-```sh
-docker compose --profile external up --build backend
-curl -i http://localhost:8080/api/v1/health
-```
-
-The `jobhub` schema is not intended for the Supabase Data API. Do not add it to exposed schemas and do not grant its tables to `anon` or `authenticated`. The Go backend uses a server-side database connection, whose password must never reach browser code. Every future application-table migration must include `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`; see [the migration security rules](backend/migrations/README.md). Explicit ownership policies can be added in Phase 2 if direct client access is selected.
-
-Free Plan projects with low activity may be paused after a seven-day period. Resume a paused staging project in the Supabase dashboard before interpreting a failed health check as an application defect. Production should use a plan whose availability matches the service requirements.
-
-## sqlc
-
-From `backend`:
-
-```sh
-go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate
-```
-
-Configuration uses version 2, PostgreSQL migrations as schema, and `pgx/v5` output. Commit generated files under `internal/database/dbgen` alongside query changes. No running database is needed to generate this query.
-
-## MVP 0 vacancy import
-
-Migration `000002` adds source-aware jobs, optional company-source identities and ingestion-run metadata. Imported jobs use a local UUID while `UNIQUE(source, external_id)` makes repeat imports idempotent. Jooble rows use `source=jooble:kz`, retain their provider URL, and always expose an external CTA. They do not create employers, accounts or JobHub applications.
-
-Put a real Kazakhstan regional API key only in untracked `.env`, ensure migrations are applied, then run the bounded importer:
+Запуск импорта:
 
 ```sh
 make migrate-local
 make import-jooble
 ```
 
-The default three searches make three requests and import at most ten results per search. `JOOBLE_MAX_REQUESTS` is validated and hard-capped at 50. The client logs request numbers and final import counts but never logs the key or the credential-bearing request URL. All searches are fetched before an atomic database write; a provider failure records a failed ingestion run without refreshing or partially overwriting existing vacancies.
+Импорт ограничен для POC. `JOOBLE_MAX_REQUESTS` не может быть больше 50. API-ключ не логируется и не должен попадать в git.
 
-For a live proof after import:
+Проверить вакансии:
 
 ```sh
 curl 'http://localhost:8080/api/v1/jobs?page=1&page_size=20'
-curl 'http://localhost:8080/api/v1/jobs/<local-job-uuid>'
 ```
 
-`source.type=external`, `source.url`, and `application.method=external` tell the frontend to show an outbound provider CTA. The API provides no internal apply operation in MVP 0.
+## Supabase
 
-## API overview
+Для staging/production backend подключается к Supabase Postgres через переменные окружения. Go backend остается основным backend-сервисом.
 
-| Method | Endpoint | Behavior |
-| --- | --- | --- |
-| GET | `/api/v1/health` | Checks the database with a two-second deadline |
-| GET | `/api/v1/jobs` | Lists fresh, source-aware vacancies with optional `q`, `location`, `page`, and `page_size` |
-| GET | `/api/v1/jobs/:id` | Returns a fresh vacancy by local UUID, including external source and CTA metadata |
+Пример только с placeholder-значениями:
 
-Healthy response, HTTP 200:
-
-```json
-{"status":"ok","database":"up","service":"jobhub-ai"}
+```dotenv
+APP_ENV=staging
+DATABASE_URL=postgresql://postgres.<project-ref>:<PASSWORD>@<host>:5432/postgres?sslmode=require&search_path=public
+DATABASE_MIGRATION_URL=postgresql://postgres.<project-ref>:<PASSWORD>@<host>:5432/postgres?sslmode=require&search_path=public
+PGX_QUERY_EXEC_MODE=cache_statement
 ```
 
-Unavailable database, HTTP 503:
+Важно:
 
-```json
-{"error":{"code":"DATABASE_UNAVAILABLE","message":"Database is unavailable"}}
+- Для Supabase используйте `sslmode=require`.
+- Для локального Docker Postgres используйте `sslmode=disable`.
+- Миграции запускайте через direct или session connection.
+- Не запускайте миграции через transaction pooler на порту `6543`.
+- Если приложение использует transaction pooler, установите `PGX_QUERY_EXEC_MODE=exec`.
+- Не открывайте схему `jobhub` через Supabase Data API или anon key.
+
+Запуск remote migrations:
+
+```sh
+make migrate-staging
 ```
 
-Unknown routes and unsupported methods return structured 404/405 errors. Database internals are logged server-side, not returned in responses. Health is a readiness check: it calls `pgxpool.Ping` with a two-second deadline and reports 503 if either local PostgreSQL or Supabase becomes unavailable. Authentication, resumes, applications, admin moderation and advanced company features do not exist yet.
+## Переменные окружения
 
-## Checks
+| Variable | Для чего |
+| --- | --- |
+| `DATABASE_URL` | Основное подключение backend к PostgreSQL |
+| `DATABASE_MIGRATION_URL` | Отдельное подключение для миграций |
+| `PGX_QUERY_EXEC_MODE` | Режим pgx, обычно `cache_statement` или `exec` |
+| `FRONTEND_ORIGIN` | Разрешенный frontend origin для CORS |
+| `VITE_API_URL` | URL backend API для frontend |
+| `VITE_USE_MOCKS` | Включает mock-данные во frontend |
+| `JOOBLE_API_KEY` | Server-side ключ Jooble |
+| `JOOBLE_MAX_REQUESTS` | Лимит запросов импорта, максимум 50 |
+| `JOOBLE_SEARCHES` | Поисковые запросы в формате `keywords|location` |
+
+Никогда не коммитьте `.env`, API-ключи, пароли от базы, Supabase keys или connection strings с реальными credentials.
+
+## Проверки
+
+Backend:
 
 ```sh
 cd backend
 go test -race ./...
 go vet ./...
-go build ./cmd/api
-cd ../frontend
-npm ci
+go build ./...
+go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate
+```
+
+Frontend:
+
+```sh
+cd frontend
+npm run lint
+npm run typecheck
 npm run build
 ```
 
-The frontend build includes strict TypeScript checking. Its status page handles loading, unavailable API/database, and retry without reporting simulated health. After starting Compose, verify the health endpoint and refresh the frontend status.
+Repository:
 
-## Screenshots
+```sh
+git diff --check
+git status
+```
 
-Placeholder: add desktop/mobile screenshots of the foundation page after running the project. Later phases will include search, resume analysis, and dashboard screenshots.
+## Чего пока нет
 
-## Next phases
+Это отложено на следующие этапы:
 
-Next, **Phase 2**: user migration and model, bcrypt password hashing, registration/login, expiring JWTs, current-user endpoint, and protected routes. Later phases add normalized providers and concurrent aggregation, search UI, legal public APIs, saved jobs/profile/history, private resume parsing, deterministic matching, recommendations, and expanded tests/security. No scraping is planned; unavailable integrations will use clearly labeled mocks.
+- авторизация
+- профили пользователей
+- резюме
+- отклики
+- кабинет работодателя
+- админ-модерация
+- production-разрешение на использование внешних вакансий
 
-## References
+## Безопасность
 
-- [Vite setup and runtime requirements](https://vite.dev/guide/)
-- [sqlc configuration](https://docs.sqlc.dev/en/latest/reference/config.html)
-- [golang-migrate CLI](https://github.com/golang-migrate/migrate/blob/master/cmd/migrate/README.md)
-- [Supabase database connections](https://supabase.com/docs/guides/database/connecting-to-postgres)
-- [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
-
-## Verification in the development environment
-
-Frontend production build, Go build, `go test -race ./...`, `go vet ./...`, and sqlc generation are the required code checks. The local Compose and Supabase runtime checks require Docker and, for Supabase, a user-provided connection string.
+- `.env` игнорируется git.
+- `.env.example` содержит только placeholder-значения.
+- Jooble API key хранится только на backend стороне.
+- Импортированные вакансии не создают фейковые аккаунты работодателей.
+- Внешние вакансии ведут на внешний apply link.
+- Production Jooble import отключен, пока не подтверждены права провайдера.
