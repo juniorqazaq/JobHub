@@ -2,7 +2,7 @@
 
 A modular job search aggregator designed to bring legal public job sources, resume matching, and personalized recommendations into one workspace.
 
-**Current scope: Phase 1.5 — Supabase-ready database hosting.** Local development uses Docker PostgreSQL; staging and production can use Supabase Postgres. The Go API remains the application backend. Supabase Auth, Edge Functions, and a frontend Supabase client are deferred to Phase 2.
+**Current scope: MVP 0 Stage B — bounded Jooble Kazakhstan vacancy-supply proof of concept.** Local development uses Docker PostgreSQL; staging and production can use Supabase Postgres. The Go API remains the application backend. Jooble is not an approved production source until its API-specific storage, redistribution, retention, attribution, and removal permissions are confirmed.
 
 ## Included
 
@@ -120,10 +120,16 @@ Copy `.env.example`; never commit `.env`. Compose reads the root `.env` automati
 | `PGX_QUERY_EXEC_MODE` | `cache_statement` for direct/session; `exec` for transaction pooling; `simple_protocol` is an available fallback |
 | `FRONTEND_ORIGIN` | Exact allowed browser origin, default `http://localhost:5173` |
 | `VITE_API_PROXY_TARGET` | Vite server's API proxy destination, default `http://localhost:8080` |
+| `JOOBLE_API_KEY` | Server-only Kazakhstan regional API key; required only by the importer and never exposed as `VITE_*` |
+| `JOOBLE_API_BASE_URL` | Kazakhstan regional API base, default `https://kz.jooble.org/api` |
+| `JOOBLE_MAX_REQUESTS` | Hard per-process POC budget, 1–50; default 10 and never permitted above 50 |
+| `JOOBLE_RESULTS_PER_PAGE` | Small POC page size, 1–20; default 10 |
+| `JOOBLE_FRESH_FOR` | Local display freshness window, 1–168 hours; a JobHub policy, not a provider expiry signal |
+| `JOOBLE_SEARCHES` | One to five `keywords|location` searches separated by semicolons; one page per search |
 
 The local Compose profile builds its container URL with hostname `postgres`; the example root URL uses `localhost` for a Go process running on the host. Both use `sslmode=disable`. Supabase URLs must use `sslmode=require`. URLs pin `search_path=public` so migration tracking stays in a stable schema. URL-encode reserved characters in passwords. Changing `POSTGRES_*` does not change accounts in an already initialized local volume.
 
-If changing `PORT`, also update `VITE_API_PROXY_TARGET`. If changing the Vite port, update `FRONTEND_ORIGIN`. No JWT or provider secrets are needed before their respective phases. The example password is for local development only. Production deployment requires separate secret management, TLS, and deployment hardening.
+If changing `PORT`, also update `VITE_API_PROXY_TARGET`. If changing the Vite port, update `FRONTEND_ORIGIN`. No JWT secret is needed in MVP 0; the Jooble key is needed only for the explicit importer command. The example database password is for local development only. Production deployment requires separate secret management, TLS, and deployment hardening.
 
 ## Run the API locally
 
@@ -226,11 +232,35 @@ go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate
 
 Configuration uses version 2, PostgreSQL migrations as schema, and `pgx/v5` output. Commit generated files under `internal/database/dbgen` alongside query changes. No running database is needed to generate this query.
 
+## MVP 0 vacancy import
+
+Migration `000002` adds source-aware jobs, optional company-source identities and ingestion-run metadata. Imported jobs use a local UUID while `UNIQUE(source, external_id)` makes repeat imports idempotent. Jooble rows use `source=jooble:kz`, retain their provider URL, and always expose an external CTA. They do not create employers, accounts or JobHub applications.
+
+Put a real Kazakhstan regional API key only in untracked `.env`, ensure migrations are applied, then run the bounded importer:
+
+```sh
+make migrate-local
+make import-jooble
+```
+
+The default three searches make three requests and import at most ten results per search. `JOOBLE_MAX_REQUESTS` is validated and hard-capped at 50. The client logs request numbers and final import counts but never logs the key or the credential-bearing request URL. All searches are fetched before an atomic database write; a provider failure records a failed ingestion run without refreshing or partially overwriting existing vacancies.
+
+For a live proof after import:
+
+```sh
+curl 'http://localhost:8080/api/v1/jobs?page=1&page_size=20'
+curl 'http://localhost:8080/api/v1/jobs/<local-job-uuid>'
+```
+
+`source.type=external`, `source.url`, and `application.method=external` tell the frontend to show an outbound provider CTA. The API provides no internal apply operation in MVP 0.
+
 ## API overview
 
 | Method | Endpoint | Behavior |
 | --- | --- | --- |
 | GET | `/api/v1/health` | Checks the database with a two-second deadline |
+| GET | `/api/v1/jobs` | Lists fresh, source-aware vacancies with optional `q`, `location`, `page`, and `page_size` |
+| GET | `/api/v1/jobs/:id` | Returns a fresh vacancy by local UUID, including external source and CTA metadata |
 
 Healthy response, HTTP 200:
 
@@ -244,7 +274,7 @@ Unavailable database, HTTP 503:
 {"error":{"code":"DATABASE_UNAVAILABLE","message":"Database is unavailable"}}
 ```
 
-Unknown routes and unsupported methods return structured 404/405 errors. Database internals are logged server-side, not returned in responses. Health is a readiness check: it calls `pgxpool.Ping` with a two-second deadline and reports 503 if either local PostgreSQL or Supabase becomes unavailable. Registration, job APIs, and protected routes do not exist yet.
+Unknown routes and unsupported methods return structured 404/405 errors. Database internals are logged server-side, not returned in responses. Health is a readiness check: it calls `pgxpool.Ping` with a two-second deadline and reports 503 if either local PostgreSQL or Supabase becomes unavailable. Authentication, resumes, applications, admin moderation and advanced company features do not exist yet.
 
 ## Checks
 
