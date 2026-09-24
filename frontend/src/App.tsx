@@ -12,6 +12,10 @@ const EmployerVacanciesPage = lazy(() => import("./pages/EmployerVacanciesPage")
 const EmployerVacancyFormPage = lazy(() => import("./pages/EmployerVacancyFormPage").then((module) => ({ default: module.EmployerVacancyFormPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })));
 const ProtectedRoute = lazy(() => import("./pages/ProtectedRoute").then((module) => ({ default: module.ProtectedRoute })));
+const ProfilePage = lazy(() => import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })));
+const SavedJobsPage = lazy(() => import("./pages/SavedJobsPage").then((module) => ({ default: module.SavedJobsPage })));
+const ApplicationsPage = lazy(() => import("./pages/ApplicationsPage").then((module) => ({ default: module.ApplicationsPage })));
+const EmployerApplicantsPage = lazy(() => import("./pages/EmployerApplicantsPage").then((module) => ({ default: module.EmployerApplicantsPage })));
 
 const ComponentShowcasePage = lazy(() =>
   import("./pages/ComponentShowcasePage").then((module) => ({
@@ -31,10 +35,14 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute role="job_seeker"><ProfilePage /></ProtectedRoute>} />
+          <Route path="/saved" element={<ProtectedRoute role="job_seeker"><SavedJobsPage /></ProtectedRoute>} />
+          <Route path="/applications" element={<ProtectedRoute role="job_seeker"><ApplicationsPage /></ProtectedRoute>} />
           <Route path="/employer" element={<ProtectedRoute role="employer"><EmployerPage /></ProtectedRoute>} />
           <Route path="/employer/vacancies" element={<ProtectedRoute role="employer"><EmployerVacanciesPage /></ProtectedRoute>} />
           <Route path="/employer/vacancies/new" element={<ProtectedRoute role="employer"><EmployerVacancyFormPage /></ProtectedRoute>} />
           <Route path="/employer/vacancies/:jobId/edit" element={<ProtectedRoute role="employer"><EmployerVacancyFormPage /></ProtectedRoute>} />
+          <Route path="/employer/vacancies/:jobId/applicants" element={<ProtectedRoute role="employer"><EmployerApplicantsPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute role="admin"><AdminPage /></ProtectedRoute>} />
           <Route path="/dev/ui" element={<ComponentShowcasePage />} />
           <Route path="/dev/components" element={<Navigate to="/dev/ui" replace />} />

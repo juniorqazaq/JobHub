@@ -2,7 +2,6 @@ import { ArrowRight, Building2, UserRoundPen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "../app/authContext";
-import { Button } from "../components/ui/Button";
 import { SiteShell } from "../layouts/SiteShell";
 
 export function AccountPage() {
@@ -38,11 +37,11 @@ export function AccountPage() {
             <aside className="account-next-step" aria-labelledby="account-next-title">
               {user.role === "employer" ? <Building2 size={24} aria-hidden="true" /> : <UserRoundPen size={24} aria-hidden="true" />}
               <h2 id="account-next-title">{user.role === "employer" ? t("auth.employerAccountActionTitle") : t("auth.profileActionTitle")}</h2>
-              <p id="account-next-description">{user.role === "employer" ? t("auth.employerAccountActionDescription") : t("auth.profileNext")}</p>
+              <p id="account-next-description">{user.role === "employer" ? t("auth.employerAccountActionDescription") : t("profile.accountDescription")}</p>
               {user.role === "employer" ? (
                 <Link className="ui-button ui-button--primary ui-button--md" to="/employer"><span>{t("auth.goToEmployer")}</span><ArrowRight size={17} aria-hidden="true" /></Link>
               ) : user.role === "job_seeker" ? (
-                <Button type="button" disabled aria-describedby="account-next-description" leadingIcon={<UserRoundPen size={17} aria-hidden="true" />}>{t("auth.completeProfile")}</Button>
+                <Link className="ui-button ui-button--primary ui-button--md" to="/profile"><UserRoundPen size={17} aria-hidden="true" /><span>{t("auth.completeProfile")}</span><ArrowRight size={17} aria-hidden="true" /></Link>
               ) : (
                 <Link className="ui-button ui-button--secondary ui-button--md" to="/admin"><span>{t("nav.admin")}</span><ArrowRight size={17} aria-hidden="true" /></Link>
               )}

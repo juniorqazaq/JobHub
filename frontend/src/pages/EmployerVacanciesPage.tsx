@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, FilePlus2, Pencil, Play, Pause, XCircle, Trash2 } from "lucide-react";
+import { ExternalLink, FilePlus2, Pencil, Play, Pause, XCircle, Trash2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import type { PublicationStatus } from "../api/models/job";
@@ -33,6 +33,7 @@ export function EmployerVacanciesPage() {
       <div className="employer-job-row__salary">{formatSalary(job, t("common.notProvided"))}</div>
       <div className="employer-job-row__actions">
         {job.publicationStatus === "published" ? <Link className="ui-button ui-button--quiet ui-button--sm" to={`/jobs/${job.id}`}><ExternalLink size={15} aria-hidden="true" /><span>{t("employer.view")}</span></Link> : null}
+        <Link className="ui-button ui-button--quiet ui-button--sm" to={`/employer/vacancies/${job.id}/applicants`}><Users size={15} aria-hidden="true" /><span>{t("employer.applicants")}</span></Link>
         {job.publicationStatus !== "closed" ? <Link className="ui-button ui-button--quiet ui-button--sm" to={`/employer/vacancies/${job.id}/edit`}><Pencil size={15} aria-hidden="true" /><span>{t("employer.edit")}</span></Link> : null}
         {job.publicationStatus === "draft" || job.publicationStatus === "paused" ? <Button size="sm" variant="secondary" leadingIcon={<Play size={15} />} disabled={transition.isPending} onClick={() => transition.mutate({ id: job.id, status: "published" })}>{t("employer.publish")}</Button> : null}
         {job.publicationStatus === "published" ? <Button size="sm" variant="secondary" leadingIcon={<Pause size={15} />} disabled={transition.isPending} onClick={() => transition.mutate({ id: job.id, status: "paused" })}>{t("employer.pause")}</Button> : null}

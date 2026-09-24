@@ -27,6 +27,7 @@ export function SiteShell({ children }: PropsWithChildren) {
           </Link>
           <nav className="site-nav" aria-label={t("nav.primaryLabel")}>
             <NavLink to="/jobs">{t("nav.jobs")}</NavLink>
+            {auth.session?.user.role === "job_seeker" ? <><NavLink to="/saved">{t("nav.saved")}</NavLink><NavLink to="/applications">{t("nav.applications")}</NavLink><NavLink to="/profile">{t("nav.profile")}</NavLink></> : null}
             {auth.session?.user.role === "employer" ? <NavLink to="/employer">{t("nav.employer")}</NavLink> : null}
             {auth.session?.user.role === "admin" ? <NavLink to="/admin">{t("nav.admin")}</NavLink> : null}
             <span className="site-nav__location"><MapPin size={16} aria-hidden="true" />{t("nav.location")}</span>
@@ -43,7 +44,7 @@ export function SiteShell({ children }: PropsWithChildren) {
             </label>
             {auth.session ? (
               <>
-                <Link className="auth-link" to={auth.session.user.role === "employer" ? "/employer" : auth.session.user.role === "admin" ? "/admin" : "/account"}>{auth.session.user.fullName}</Link>
+                <Link className="auth-link" to="/account">{auth.session.user.fullName}</Link>
                 <IconButton
                   label={t("auth.logout")}
                   icon={<LogOut size={18} />}

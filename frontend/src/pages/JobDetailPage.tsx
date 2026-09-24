@@ -5,6 +5,8 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { repositories } from "../api/repositories";
 import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { SiteShell } from "../layouts/SiteShell";
+import { JobSaveButton } from "../components/jobs/JobSaveButton";
+import { ApplyAction } from "../components/jobs/ApplyAction";
 
 interface DetailLocationState { from?: string }
 
@@ -46,9 +48,10 @@ export function JobDetailPage() {
           </article>
           <aside className="detail-rail">
             {job.data.application.method === "external" && job.data.application.ctaUrl ? <>
+              <JobSaveButton job={job.data} />
               <a className="external-cta" href={job.data.application.ctaUrl} target="_blank" rel="noreferrer">{t("jobDetail.externalCta")}<ExternalLink size={18} aria-hidden="true" /></a>
               <p className="detail-rail__hint">{t("jobDetail.externalHint", { source: job.data.source.name })}</p>
-            </> : <div className="internal-application-note"><strong>{t("jobDetail.applicationsComing")}</strong><p>{t("jobDetail.applicationsComingHint")}</p></div>}
+            </> : <div className="job-detail-actions"><JobSaveButton job={job.data} /><ApplyAction job={job.data} /></div>}
             <section>
               <h2>{t("jobDetail.sourceTitle")}</h2>
               <p className="detail-source-name">{job.data.source.name}</p>
