@@ -524,6 +524,7 @@ export function ProfilePage() {
                   type="button"
                   variant="quiet"
                   size="sm"
+                  className="language-row__remove"
                   onClick={() => languages.remove(index)}
                 >
                   {t("common.remove")}
