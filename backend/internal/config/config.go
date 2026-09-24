@@ -16,6 +16,7 @@ type Config struct {
 	DatabaseMigrationURL string
 	PGXQueryExecMode     string
 	FrontendOrigin       string
+	ResumeStorageDir     string
 }
 
 type JoobleSearch struct {
@@ -40,6 +41,7 @@ func Load() (Config, error) {
 		DatabaseMigrationURL: os.Getenv("DATABASE_MIGRATION_URL"),
 		PGXQueryExecMode:     value("PGX_QUERY_EXEC_MODE", "cache_statement"),
 		FrontendOrigin:       value("FRONTEND_ORIGIN", "http://localhost:5173"),
+		ResumeStorageDir:     value("RESUME_STORAGE_DIR", "./storage/resumes"),
 	}
 	if c.DatabaseMigrationURL == "" {
 		c.DatabaseMigrationURL = c.DatabaseURL
@@ -63,6 +65,9 @@ func Load() (Config, error) {
 	}
 	if c.PGXQueryExecMode != "cache_statement" && c.PGXQueryExecMode != "exec" && c.PGXQueryExecMode != "simple_protocol" {
 		return Config{}, fmt.Errorf("PGX_QUERY_EXEC_MODE must be cache_statement, exec, or simple_protocol")
+	}
+	if strings.TrimSpace(c.ResumeStorageDir) == "" {
+		return Config{}, fmt.Errorf("RESUME_STORAGE_DIR must not be blank")
 	}
 	databaseURL, _ := url.Parse(c.DatabaseURL)
 	if databaseURL.Port() == "6543" && c.PGXQueryExecMode == "cache_statement" {

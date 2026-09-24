@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"jobhub-ai/backend/internal/auth"
+	"jobhub-ai/backend/internal/candidates"
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/middleware"
 	"log/slog"
@@ -13,6 +14,7 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 	var jobReader jobs.Reader
 	var employerJobs jobs.EmployerStore
 	var authService auth.Service
+	var candidateService *candidates.Service
 	environment := "development"
 	for _, extra := range extras {
 		if value, ok := extra.(jobs.Reader); ok {
@@ -23,6 +25,9 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 		}
 		if value, ok := extra.(auth.Service); ok {
 			authService = value
+		}
+		if value, ok := extra.(*candidates.Service); ok {
+			candidateService = value
 		}
 		if value, ok := extra.(string); ok {
 			environment = value
@@ -53,6 +58,9 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 	}
 	if authService != nil && employerJobs != nil {
 		RegisterEmployerJobRoutes(router, employerJobs, authService, logger, origin)
+	}
+	if authService != nil && candidateService != nil {
+		RegisterCandidateRoutes(router, candidateService, authService, logger, origin)
 	}
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Endpoint not found"}})
