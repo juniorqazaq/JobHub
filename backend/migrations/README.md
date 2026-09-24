@@ -1,8 +1,7 @@
 # Migration security rules
 
-The `jobhub` schema has no application tables in Phase 1.5. Every future
-migration that creates a table must enable Row Level Security in the same `up`
-migration, even though the Go backend normally connects with a trusted
+Every migration that creates a table must enable Row Level Security in the same
+`up` migration, even though the Go backend normally connects with a trusted
 server-side database role:
 
 ```sql
