@@ -19,7 +19,15 @@ Jooble сейчас используется только как proof of concep
   - `GET /api/v1/health`
   - `GET /api/v1/jobs`
   - `GET /api/v1/jobs/:id`
+- Auth API:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/auth/me`
+  - `POST /api/v1/auth/logout`
 - Схема БД с поддержкой разных источников вакансий.
+- Регистрация соискателя и работодателя.
+- При регистрации работодателя создается компания и ownership membership.
+- Сессии через HttpOnly cookie, CSRF header для mutations, session token хранится в БД только как hash.
 - Дедупликация импортированных вакансий через `UNIQUE(source, external_id)`.
 - Атомарный импорт с логированием статистики.
 - Внешние вакансии открываются только через external CTA.
@@ -133,6 +141,22 @@ PGX_QUERY_EXEC_MODE=cache_statement
 ```sh
 make migrate-staging
 ```
+
+## Admin provisioning
+
+Admin не регистрируется публично. Создать первого admin можно только backend-командой:
+
+```sh
+set -a
+. ./.env
+set +a
+
+export ADMIN_PASSWORD='<strong-admin-password>'
+cd backend
+go run ./cmd/create-admin --full-name 'Admin Name' --email admin@example.com
+```
+
+Пароль не печатается и не хранится в репозитории.
 
 ## Переменные окружения
 
