@@ -1,6 +1,7 @@
 export type WorkMode = "remote" | "hybrid" | "on_site";
-export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
-export type ExperienceLevel = "internship" | "junior" | "middle" | "senior" | "lead";
+export type EmploymentType = "full_time" | "part_time" | "contract" | "temporary" | "internship";
+export type ExperienceLevel = "no_experience" | "junior" | "middle" | "senior" | "lead";
+export type PublicationStatus = "draft" | "published" | "paused" | "closed";
 export type JobSort = "newest" | "oldest";
 
 export interface SalaryRange {
@@ -38,6 +39,10 @@ export interface JobSummary {
   workMode?: WorkMode;
   employmentType?: EmploymentType | string;
   experienceLevel?: ExperienceLevel;
+  category?: string;
+  responsibilities?: string;
+  requirements?: string;
+  niceToHave?: string;
   salary?: SalaryRange;
   salaryRaw?: string;
   postedAt: string;
@@ -47,12 +52,40 @@ export interface JobSummary {
   externalPublishedAt?: string;
   externalUpdatedAt?: string;
   externalExpiresAt?: string;
+  expiresAt?: string;
+  publishedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  publicationStatus?: PublicationStatus;
+  moderationStatus?: "approved" | "pending" | "rejected";
+  benefits?: string[];
   tags: string[];
   summary: string;
   isSaved: boolean;
   descriptionKind?: "full" | "snippet";
   source: JobSource;
   application: JobApplication;
+}
+
+export interface NativeJobInput {
+  title: string;
+  category: string;
+  description: string;
+  responsibilities: string;
+  requirements: string;
+  niceToHave?: string;
+  skills: string[];
+  location: string;
+  workMode: WorkMode;
+  employmentType: EmploymentType;
+  experienceLevel: ExperienceLevel;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  salaryPeriod?: string;
+  salaryVisible: boolean;
+  benefits: string[];
+  expiresAt?: string;
 }
 
 export interface JobSearchParams {

@@ -18,6 +18,11 @@ export interface JobDto {
   work_mode?: WorkMode;
   employment_type?: EmploymentType | string;
   experience_level?: ExperienceLevel;
+  category?: string;
+  responsibilities?: string;
+  requirements?: string;
+  nice_to_have?: string;
+  skills?: string[];
   salary?: SalaryRange;
   salary_raw?: string;
   posted_at: string;
@@ -27,6 +32,18 @@ export interface JobDto {
   external_published_at?: string;
   external_updated_at?: string;
   external_expires_at?: string;
+  expires_at?: string;
+  published_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  publication_status?: "draft" | "published" | "paused" | "closed";
+  moderation_status?: "approved" | "pending" | "rejected";
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_period?: string;
+  salary_visible?: boolean;
+  benefits?: string[];
   tags?: string[];
   summary: string;
   is_saved?: boolean;
@@ -43,6 +60,8 @@ export interface JobDto {
     cta_url?: string;
   };
 }
+
+export interface EmployerJobsResponseDto { items: JobDto[] }
 
 export interface JobSearchResponseDto {
   items: JobDto[];
