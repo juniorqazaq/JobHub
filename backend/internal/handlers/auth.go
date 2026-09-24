@@ -64,6 +64,7 @@ func (h authHandler) register(c *gin.Context) {
 		return
 	}
 	h.setSessionCookie(c, token, session.ExpiresAt)
+	h.setCSRFCookie(c, session.CSRFToken, session.ExpiresAt)
 	c.JSON(http.StatusCreated, mapSessionResponse(session))
 }
 
@@ -78,6 +79,7 @@ func (h authHandler) login(c *gin.Context) {
 		return
 	}
 	h.setSessionCookie(c, token, session.ExpiresAt)
+	h.setCSRFCookie(c, session.CSRFToken, session.ExpiresAt)
 	c.JSON(http.StatusOK, mapSessionResponse(session))
 }
 
@@ -88,6 +90,13 @@ func (h authHandler) me(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHENTICATED", "message": "Authentication required"}})
 		return
 	}
+	csrf, csrfErr := c.Cookie(auth.CSRFCookieName)
+	if csrfErr != nil || h.service.ValidateCSRF(c.Request.Context(), token, csrf) != nil {
+		h.clearSessionCookie(c)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHENTICATED", "message": "Authentication required"}})
+		return
+	}
+	session.CSRFToken = csrf
 	c.JSON(http.StatusOK, mapSessionResponse(session))
 }
 
@@ -151,10 +160,21 @@ func (h authHandler) setSessionCookie(c *gin.Context, token string, expiresAt ti
 	})
 }
 
+func (h authHandler) setCSRFCookie(c *gin.Context, token string, expiresAt time.Time) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name: auth.CSRFCookieName, Value: token, Path: "/", Expires: expiresAt,
+		HttpOnly: false, Secure: h.secure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
 func (h authHandler) clearSessionCookie(c *gin.Context) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name: auth.SessionCookieName, Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: h.secure, SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name: auth.CSRFCookieName, Value: "", Path: "/", MaxAge: -1,
+		HttpOnly: false, Secure: h.secure, SameSite: http.SameSiteLaxMode,
 	})
 }
 

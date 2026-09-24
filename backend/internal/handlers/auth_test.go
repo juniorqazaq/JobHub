@@ -91,6 +91,7 @@ func TestAuthMeAndLogout(t *testing.T) {
 	me := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "token"})
+	req.AddCookie(&http.Cookie{Name: auth.CSRFCookieName, Value: "csrf"})
 	router.ServeHTTP(me, req)
 	if me.Code != http.StatusOK {
 		t.Fatalf("me failed: %d %s", me.Code, me.Body.String())

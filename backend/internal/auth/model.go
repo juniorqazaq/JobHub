@@ -15,6 +15,7 @@ const (
 	StatusSuspended = "suspended"
 
 	SessionCookieName = "jobhub_session"
+	CSRFCookieName    = "jobhub_csrf"
 	CSRFHeaderName    = "X-CSRF-Token"
 )
 
