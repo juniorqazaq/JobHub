@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import type { UserRole } from "../api/models/auth";
 import { useAuth } from "../app/authContext";
 import { SiteShell } from "../layouts/SiteShell";
+import { JobHubLoader } from "../components/ui/JobHubLoader";
 
 interface ProtectedRouteProps {
   role?: UserRole;
@@ -14,7 +15,7 @@ export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
   const { t } = useTranslation();
   const auth = useAuth();
   const location = useLocation();
-  if (auth.isLoading) return <div className="route-loading" aria-hidden="true" />;
+  if (auth.isLoading) return <div className="route-loading"><JobHubLoader /></div>;
   if (!auth.session) return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   if (role && auth.session.user.role !== role) {
     return (

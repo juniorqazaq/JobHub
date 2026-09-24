@@ -75,10 +75,11 @@ export function ApplicationsPage() {
         ) : null}
         {apps.data?.length === 0 ? (
           <EmptyState
+            illustration="/illustrations/empty-applications.png"
             title={t("applications.emptyTitle")}
             description={t("applications.emptyDescription")}
             secondary={
-              <Link className="text-link" to="/jobs">
+              <Link className="ui-button ui-button--primary ui-button--md" to="/jobs">
                 {t("applications.browse")}
               </Link>
             }

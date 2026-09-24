@@ -149,6 +149,31 @@
 .ui-state h3 { margin: 0; font-size: var(--text-18); }
 .ui-state p { margin: 0; max-width: 34rem; color: var(--color-text-secondary); }
 .ui-state--error > svg { color: var(--color-error); }
+.ui-state--illustrated { justify-items: center; padding-block: var(--space-8); border: 0; background: transparent; text-align: center; }
+.ui-state__illustration { width: clamp(10rem, 30vw, 18rem); height: auto; object-fit: contain; }
+.ui-state--illustrated h3 { font-size: var(--text-24); }
+.ui-state--illustrated p { max-width: 32rem; }
+.ui-state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
+
+.jobhub-loader { display: grid; min-height: 12rem; place-items: center; }
+.jobhub-loader__stage { position: relative; width: 5.5rem; height: 5.5rem; display: grid; place-items: center; }
+.jobhub-loader__logo { width: 3.75rem; height: 3.75rem; object-fit: contain; animation: jobhub-loader-pulse 1.5s ease-in-out infinite; }
+.jobhub-loader__orbit { position: absolute; inset: 0; animation: jobhub-loader-orbit 1.5s linear infinite; }
+.jobhub-loader__dot { position: absolute; top: .2rem; left: 50%; width: .75rem; height: .75rem; border: 2px solid rgb(255 255 255 / 75%); border-radius: 50%; background: #58d5f7; box-shadow: 0 0 .75rem rgb(88 213 247 / 48%); transform: translateX(-50%); }
+@keyframes jobhub-loader-orbit { to { transform: rotate(360deg); } }
+@keyframes jobhub-loader-pulse { 50% { opacity: .88; transform: scale(.97); } }
+
+@media (max-width: 32rem) {
+  .ui-state--illustrated { padding-block: var(--space-6); }
+  .ui-state__illustration { width: clamp(10rem, 58vw, 14rem); }
+  .ui-state__actions { width: 100%; }
+  .ui-state__actions .ui-button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jobhub-loader__orbit { animation: none; transform: rotate(35deg); }
+  .jobhub-loader__logo { animation: none; }
+}
 
 .ui-dialog-layer { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: var(--space-4); background: var(--color-overlay); }
 .ui-dialog { width: min(100%, 32rem); max-height: calc(100vh - 2rem); overflow: auto; border-radius: var(--radius-lg); background: var(--color-surface-elevated); box-shadow: var(--shadow-overlay); }

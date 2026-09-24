@@ -1,0 +1,6 @@
+interface:
+  display_name: "JobHub Focused Change"
+  short_description: "Fix JobHub with targeted reads and regression checks"
+  default_prompt: "Use $jobhub-focused-change for this scoped JobHub task. Start from the verified repository map, inspect the affected code and necessary dependencies, implement the smallest complete fix, and run the required checks."
+policy:
+  allow_implicit_invocation: true

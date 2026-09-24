@@ -7,7 +7,7 @@ import { repositories } from "../api/repositories";
 import { useAuth } from "../app/authContext";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 import { Button } from "../components/ui/Button";
-import { ErrorState, Skeleton } from "../components/ui/Feedback";
+import { EmptyState, ErrorState, Skeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
 import { JobPreferencesSection } from "./JobPreferencesPage";
 
@@ -156,21 +156,21 @@ export function ResumePage() {
                   </div>
                 </div>
               ) : (
-                <div className="resume-upload">
-                  <FileText size={28} aria-hidden="true" />
-                  <div>
-                    <strong>{t("resume.emptyTitle")}</strong>
-                    <p>{t("resume.emptyDescription")}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    leadingIcon={<Upload size={17} />}
-                    isLoading={upload.isPending}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {t("resume.upload")}
-                  </Button>
-                </div>
+                <EmptyState
+                  illustration="/illustrations/empty-resume.png"
+                  title={t("resume.emptyTitle")}
+                  description={t("resume.emptyDescription")}
+                  secondary={
+                    <Button
+                      type="button"
+                      leadingIcon={<Upload size={17} />}
+                      isLoading={upload.isPending}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {t("resume.upload")}
+                    </Button>
+                  }
+                />
               )}
             </div>
           </section>

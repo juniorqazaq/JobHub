@@ -22,18 +22,45 @@ export function JobListSkeleton({ label }: { label: string }) {
 interface StateProps {
   title: string;
   description: string;
+  illustration?: string;
+  illustrationAlt?: string;
+  illustrationLoading?: "eager" | "lazy";
+  illustrationWidth?: number;
+  illustrationHeight?: number;
   actionLabel?: string;
   onAction?: () => void;
   secondary?: ReactNode;
 }
 
-export function EmptyState({ title, description, actionLabel, onAction, secondary }: StateProps) {
+export function EmptyState({
+  title,
+  description,
+  illustration,
+  illustrationAlt = "",
+  illustrationLoading = "lazy",
+  illustrationWidth = 800,
+  illustrationHeight = 800,
+  actionLabel,
+  onAction,
+  secondary,
+}: StateProps) {
   return (
-    <div className="ui-state">
-      <BriefcaseBusiness size={24} aria-hidden="true" />
+    <div className={`ui-state${illustration ? " ui-state--illustrated" : ""}`}>
+      {illustration ? (
+        <img
+          className="ui-state__illustration"
+          src={illustration}
+          width={illustrationWidth}
+          height={illustrationHeight}
+          loading={illustrationLoading}
+          alt={illustrationAlt}
+        />
+      ) : (
+        <BriefcaseBusiness size={24} aria-hidden="true" />
+      )}
       <h3>{title}</h3><p>{description}</p>
-      {actionLabel && onAction ? <Button variant="secondary" onClick={onAction}>{actionLabel}</Button> : null}
-      {secondary}
+      {actionLabel && onAction ? <Button onClick={onAction}>{actionLabel}</Button> : null}
+      {secondary ? <div className="ui-state__actions">{secondary}</div> : null}
     </div>
   );
 }

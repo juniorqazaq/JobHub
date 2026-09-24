@@ -117,17 +117,8 @@ svg {
   border: 0;
 }
 
-.route-loading {
-  width: 100%;
-  height: 0.25rem;
-  background: var(--color-primary);
-  animation: route-loading 900ms ease-in-out infinite alternate;
-}
-
-@keyframes route-loading {
-  from { transform: scaleX(0.15); transform-origin: left; }
-  to { transform: scaleX(1); transform-origin: left; }
-}
+.route-loading { min-height: min(60vh, 34rem); }
+.not-found-page { display: grid; min-height: min(68vh, 42rem); place-items: center; padding-block: var(--space-8); }
 
 @media (min-width: 48rem) {
   .page-container,

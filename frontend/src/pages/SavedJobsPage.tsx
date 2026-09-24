@@ -46,10 +46,11 @@ export function SavedJobsPage() {
         ) : null}
         {saved.data?.length === 0 ? (
           <EmptyState
+            illustration="/illustrations/empty-saved-jobs.png"
             title={t("saved.emptyTitle")}
             description={t("saved.emptyDescription")}
             secondary={
-              <Link className="text-link" to="/jobs">
+              <Link className="ui-button ui-button--primary ui-button--md" to="/jobs">
                 {t("saved.browse")}
               </Link>
             }

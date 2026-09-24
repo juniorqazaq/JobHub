@@ -162,8 +162,15 @@ PGX_QUERY_EXEC_MODE=cache_statement
 Запуск remote migrations:
 
 ```sh
+make migrate-version
 make migrate-staging
 ```
+
+Команды используют локальный Go runner и не требуют Docker. Для staging
+обязательно задайте `APP_ENV=staging` и `DATABASE_MIGRATION_URL` с direct или
+session подключением на порту `5432`. `make migrate-version` безопасно показывает
+текущую версию, dirty-состояние и ожидающие версии. Production, transaction
+pooler, `sslmode=disable`, автоматические down/reset/force операции запрещены.
 
 ## Admin provisioning
 
