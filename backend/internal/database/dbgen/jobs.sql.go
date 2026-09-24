@@ -62,8 +62,7 @@ FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
 WHERE s.enabled
   AND (NOT $1::boolean OR s.production_permissions_confirmed)
-  AND j.source_status IN ('unknown', 'active')
-  AND j.fresh_until > now()
+  AND jobhub.job_is_public(j)
   AND ($2::text IS NULL OR j.title ILIKE '%' || $2 || '%' OR j.company_name_raw ILIKE '%' || $2 || '%')
   AND ($3::text IS NULL OR j.location_raw ILIKE '%' || $3 || '%')
 `
@@ -99,6 +98,137 @@ func (q *Queries) CreateIngestionRun(ctx context.Context, arg CreateIngestionRun
 	return id, err
 }
 
+const createNativeJob = `-- name: CreateNativeJob :one
+INSERT INTO jobhub.jobs (
+    source, company_id, created_by_user_id, company_name_raw, title, category, description, description_kind,
+    responsibilities, requirements, nice_to_have, skills, location_raw,
+    work_mode, employment_type, experience_level, salary_min, salary_max,
+    salary_currency, salary_period, salary_visible, benefits, application_method,
+    source_status, publication_status, first_seen_at, last_seen_at, last_synced_at,
+    fresh_until, expires_at, moderation_status
+)
+SELECT
+    'jobhub', cm.company_id, $1, c.name, $2, $3,
+    $4, 'full', $5, $6,
+    $7, $8::text[], $9,
+    $10, $11, $12,
+    $13, $14, $15,
+    $16, $17, $18::text[],
+    'internal', 'active', 'draft', now(), now(), now(), 'infinity'::timestamptz,
+    $19, 'approved'
+FROM jobhub.company_memberships cm
+JOIN jobhub.companies c ON c.id = cm.company_id
+JOIN jobhub.users u ON u.id = cm.user_id
+WHERE cm.user_id = $1
+  AND cm.role = 'owner'
+  AND c.status = 'active'
+  AND u.status = 'active'
+ORDER BY cm.created_at
+LIMIT 1
+RETURNING id, source, external_id, source_url, upstream_source_name, company_id, company_source_id, company_name_raw, title, location_raw, description, description_kind, employment_type_raw, salary_raw, salary_min, salary_max, salary_currency, salary_period, salary_gross, salary_is_estimated, application_method, apply_url, source_status, publication_status, first_seen_at, last_seen_at, last_synced_at, fresh_until, external_created_at, external_published_at, external_updated_at, external_updated_raw, external_expires_at, external_archived_at, created_at, updated_at, category, responsibilities, requirements, nice_to_have, skills, work_mode, employment_type, experience_level, benefits, salary_visible, expires_at, published_at, deleted_at, moderation_status, created_by_user_id
+`
+
+type CreateNativeJobParams struct {
+	UserID           pgtype.UUID
+	Title            string
+	Category         pgtype.Text
+	Description      pgtype.Text
+	Responsibilities pgtype.Text
+	Requirements     pgtype.Text
+	NiceToHave       pgtype.Text
+	Skills           []string
+	Location         pgtype.Text
+	WorkMode         pgtype.Text
+	EmploymentType   pgtype.Text
+	ExperienceLevel  pgtype.Text
+	SalaryMin        pgtype.Numeric
+	SalaryMax        pgtype.Numeric
+	SalaryCurrency   pgtype.Text
+	SalaryPeriod     pgtype.Text
+	SalaryVisible    bool
+	Benefits         []string
+	ExpiresAt        pgtype.Timestamptz
+}
+
+func (q *Queries) CreateNativeJob(ctx context.Context, arg CreateNativeJobParams) (JobhubJob, error) {
+	row := q.db.QueryRow(ctx, createNativeJob,
+		arg.UserID,
+		arg.Title,
+		arg.Category,
+		arg.Description,
+		arg.Responsibilities,
+		arg.Requirements,
+		arg.NiceToHave,
+		arg.Skills,
+		arg.Location,
+		arg.WorkMode,
+		arg.EmploymentType,
+		arg.ExperienceLevel,
+		arg.SalaryMin,
+		arg.SalaryMax,
+		arg.SalaryCurrency,
+		arg.SalaryPeriod,
+		arg.SalaryVisible,
+		arg.Benefits,
+		arg.ExpiresAt,
+	)
+	var i JobhubJob
+	err := row.Scan(
+		&i.ID,
+		&i.Source,
+		&i.ExternalID,
+		&i.SourceUrl,
+		&i.UpstreamSourceName,
+		&i.CompanyID,
+		&i.CompanySourceID,
+		&i.CompanyNameRaw,
+		&i.Title,
+		&i.LocationRaw,
+		&i.Description,
+		&i.DescriptionKind,
+		&i.EmploymentTypeRaw,
+		&i.SalaryRaw,
+		&i.SalaryMin,
+		&i.SalaryMax,
+		&i.SalaryCurrency,
+		&i.SalaryPeriod,
+		&i.SalaryGross,
+		&i.SalaryIsEstimated,
+		&i.ApplicationMethod,
+		&i.ApplyUrl,
+		&i.SourceStatus,
+		&i.PublicationStatus,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.LastSyncedAt,
+		&i.FreshUntil,
+		&i.ExternalCreatedAt,
+		&i.ExternalPublishedAt,
+		&i.ExternalUpdatedAt,
+		&i.ExternalUpdatedRaw,
+		&i.ExternalExpiresAt,
+		&i.ExternalArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Category,
+		&i.Responsibilities,
+		&i.Requirements,
+		&i.NiceToHave,
+		&i.Skills,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.ExperienceLevel,
+		&i.Benefits,
+		&i.SalaryVisible,
+		&i.ExpiresAt,
+		&i.PublishedAt,
+		&i.DeletedAt,
+		&i.ModerationStatus,
+		&i.CreatedByUserID,
+	)
+	return i, err
+}
+
 const failIngestionRun = `-- name: FailIngestionRun :exec
 UPDATE jobhub.ingestion_runs
 SET status = 'failed',
@@ -132,15 +262,89 @@ func (q *Queries) FailIngestionRun(ctx context.Context, arg FailIngestionRunPara
 	return err
 }
 
+const getEmployerJob = `-- name: GetEmployerJob :one
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+FROM jobhub.jobs j
+JOIN jobhub.company_memberships cm ON cm.company_id = j.company_id
+WHERE j.id = $1
+  AND cm.user_id = $2
+  AND cm.role = 'owner'
+  AND j.source = 'jobhub'
+  AND j.deleted_at IS NULL
+`
+
+type GetEmployerJobParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) GetEmployerJob(ctx context.Context, arg GetEmployerJobParams) (JobhubJob, error) {
+	row := q.db.QueryRow(ctx, getEmployerJob, arg.ID, arg.UserID)
+	var i JobhubJob
+	err := row.Scan(
+		&i.ID,
+		&i.Source,
+		&i.ExternalID,
+		&i.SourceUrl,
+		&i.UpstreamSourceName,
+		&i.CompanyID,
+		&i.CompanySourceID,
+		&i.CompanyNameRaw,
+		&i.Title,
+		&i.LocationRaw,
+		&i.Description,
+		&i.DescriptionKind,
+		&i.EmploymentTypeRaw,
+		&i.SalaryRaw,
+		&i.SalaryMin,
+		&i.SalaryMax,
+		&i.SalaryCurrency,
+		&i.SalaryPeriod,
+		&i.SalaryGross,
+		&i.SalaryIsEstimated,
+		&i.ApplicationMethod,
+		&i.ApplyUrl,
+		&i.SourceStatus,
+		&i.PublicationStatus,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.LastSyncedAt,
+		&i.FreshUntil,
+		&i.ExternalCreatedAt,
+		&i.ExternalPublishedAt,
+		&i.ExternalUpdatedAt,
+		&i.ExternalUpdatedRaw,
+		&i.ExternalExpiresAt,
+		&i.ExternalArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Category,
+		&i.Responsibilities,
+		&i.Requirements,
+		&i.NiceToHave,
+		&i.Skills,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.ExperienceLevel,
+		&i.Benefits,
+		&i.SalaryVisible,
+		&i.ExpiresAt,
+		&i.PublishedAt,
+		&i.DeletedAt,
+		&i.ModerationStatus,
+		&i.CreatedByUserID,
+	)
+	return i, err
+}
+
 const getPublicJob = `-- name: GetPublicJob :one
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
 FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
 WHERE j.id = $1
   AND s.enabled
   AND (NOT $2::boolean OR s.production_permissions_confirmed)
-  AND j.source_status IN ('unknown', 'active')
-  AND j.fresh_until > now()
+  AND jobhub.job_is_public(j)
 `
 
 type GetPublicJobParams struct {
@@ -188,6 +392,21 @@ func (q *Queries) GetPublicJob(ctx context.Context, arg GetPublicJobParams) (Job
 		&i.ExternalArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Category,
+		&i.Responsibilities,
+		&i.Requirements,
+		&i.NiceToHave,
+		&i.Skills,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.ExperienceLevel,
+		&i.Benefits,
+		&i.SalaryVisible,
+		&i.ExpiresAt,
+		&i.PublishedAt,
+		&i.DeletedAt,
+		&i.ModerationStatus,
+		&i.CreatedByUserID,
 	)
 	return i, err
 }
@@ -211,14 +430,96 @@ func (q *Queries) ImportedJobExists(ctx context.Context, arg ImportedJobExistsPa
 	return exists, err
 }
 
+const listEmployerJobs = `-- name: ListEmployerJobs :many
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+FROM jobhub.jobs j
+JOIN jobhub.company_memberships cm ON cm.company_id = j.company_id
+WHERE cm.user_id = $1
+  AND cm.role = 'owner'
+  AND j.source = 'jobhub'
+  AND j.deleted_at IS NULL
+ORDER BY j.updated_at DESC, j.id DESC
+`
+
+func (q *Queries) ListEmployerJobs(ctx context.Context, userID pgtype.UUID) ([]JobhubJob, error) {
+	rows, err := q.db.Query(ctx, listEmployerJobs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobhubJob
+	for rows.Next() {
+		var i JobhubJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.Source,
+			&i.ExternalID,
+			&i.SourceUrl,
+			&i.UpstreamSourceName,
+			&i.CompanyID,
+			&i.CompanySourceID,
+			&i.CompanyNameRaw,
+			&i.Title,
+			&i.LocationRaw,
+			&i.Description,
+			&i.DescriptionKind,
+			&i.EmploymentTypeRaw,
+			&i.SalaryRaw,
+			&i.SalaryMin,
+			&i.SalaryMax,
+			&i.SalaryCurrency,
+			&i.SalaryPeriod,
+			&i.SalaryGross,
+			&i.SalaryIsEstimated,
+			&i.ApplicationMethod,
+			&i.ApplyUrl,
+			&i.SourceStatus,
+			&i.PublicationStatus,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.LastSyncedAt,
+			&i.FreshUntil,
+			&i.ExternalCreatedAt,
+			&i.ExternalPublishedAt,
+			&i.ExternalUpdatedAt,
+			&i.ExternalUpdatedRaw,
+			&i.ExternalExpiresAt,
+			&i.ExternalArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Category,
+			&i.Responsibilities,
+			&i.Requirements,
+			&i.NiceToHave,
+			&i.Skills,
+			&i.WorkMode,
+			&i.EmploymentType,
+			&i.ExperienceLevel,
+			&i.Benefits,
+			&i.SalaryVisible,
+			&i.ExpiresAt,
+			&i.PublishedAt,
+			&i.DeletedAt,
+			&i.ModerationStatus,
+			&i.CreatedByUserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPublicJobs = `-- name: ListPublicJobs :many
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
 FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
 WHERE s.enabled
   AND (NOT $1::boolean OR s.production_permissions_confirmed)
-  AND j.source_status IN ('unknown', 'active')
-  AND j.fresh_until > now()
+  AND jobhub.job_is_public(j)
   AND ($2::text IS NULL OR j.title ILIKE '%' || $2 || '%' OR j.company_name_raw ILIKE '%' || $2 || '%')
   AND ($3::text IS NULL OR j.location_raw ILIKE '%' || $3 || '%')
 ORDER BY
@@ -290,6 +591,21 @@ func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) 
 			&i.ExternalArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Category,
+			&i.Responsibilities,
+			&i.Requirements,
+			&i.NiceToHave,
+			&i.Skills,
+			&i.WorkMode,
+			&i.EmploymentType,
+			&i.ExperienceLevel,
+			&i.Benefits,
+			&i.SalaryVisible,
+			&i.ExpiresAt,
+			&i.PublishedAt,
+			&i.DeletedAt,
+			&i.ModerationStatus,
+			&i.CreatedByUserID,
 		); err != nil {
 			return nil, err
 		}
@@ -299,6 +615,262 @@ func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteNativeJob = `-- name: SoftDeleteNativeJob :one
+UPDATE jobhub.jobs j
+SET deleted_at = now(), updated_at = now()
+WHERE j.id = $1
+  AND j.source = 'jobhub'
+  AND j.deleted_at IS NULL
+  AND j.publication_status IN ('draft', 'closed')
+  AND EXISTS (
+      SELECT 1 FROM jobhub.company_memberships cm
+      WHERE cm.company_id = j.company_id
+        AND cm.user_id = $2
+        AND cm.role = 'owner'
+  )
+RETURNING j.id
+`
+
+type SoftDeleteNativeJobParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) SoftDeleteNativeJob(ctx context.Context, arg SoftDeleteNativeJobParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, softDeleteNativeJob, arg.ID, arg.UserID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const transitionNativeJob = `-- name: TransitionNativeJob :one
+UPDATE jobhub.jobs j
+SET publication_status = $1,
+    published_at = CASE
+        WHEN $1::text = 'published' THEN COALESCE(j.published_at, now())
+        ELSE j.published_at
+    END,
+    updated_at = now()
+WHERE j.id = $2
+  AND j.source = 'jobhub'
+  AND j.deleted_at IS NULL
+  AND (
+      j.publication_status = $1
+      OR (j.publication_status = 'draft' AND $1::text IN ('published', 'closed'))
+      OR (j.publication_status = 'published' AND $1::text IN ('paused', 'closed'))
+      OR (j.publication_status = 'paused' AND $1::text IN ('published', 'closed'))
+  )
+  AND EXISTS (
+      SELECT 1 FROM jobhub.company_memberships cm
+      WHERE cm.company_id = j.company_id
+        AND cm.user_id = $3
+        AND cm.role = 'owner'
+  )
+RETURNING j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+`
+
+type TransitionNativeJobParams struct {
+	PublicationStatus pgtype.Text
+	ID                pgtype.UUID
+	UserID            pgtype.UUID
+}
+
+func (q *Queries) TransitionNativeJob(ctx context.Context, arg TransitionNativeJobParams) (JobhubJob, error) {
+	row := q.db.QueryRow(ctx, transitionNativeJob, arg.PublicationStatus, arg.ID, arg.UserID)
+	var i JobhubJob
+	err := row.Scan(
+		&i.ID,
+		&i.Source,
+		&i.ExternalID,
+		&i.SourceUrl,
+		&i.UpstreamSourceName,
+		&i.CompanyID,
+		&i.CompanySourceID,
+		&i.CompanyNameRaw,
+		&i.Title,
+		&i.LocationRaw,
+		&i.Description,
+		&i.DescriptionKind,
+		&i.EmploymentTypeRaw,
+		&i.SalaryRaw,
+		&i.SalaryMin,
+		&i.SalaryMax,
+		&i.SalaryCurrency,
+		&i.SalaryPeriod,
+		&i.SalaryGross,
+		&i.SalaryIsEstimated,
+		&i.ApplicationMethod,
+		&i.ApplyUrl,
+		&i.SourceStatus,
+		&i.PublicationStatus,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.LastSyncedAt,
+		&i.FreshUntil,
+		&i.ExternalCreatedAt,
+		&i.ExternalPublishedAt,
+		&i.ExternalUpdatedAt,
+		&i.ExternalUpdatedRaw,
+		&i.ExternalExpiresAt,
+		&i.ExternalArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Category,
+		&i.Responsibilities,
+		&i.Requirements,
+		&i.NiceToHave,
+		&i.Skills,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.ExperienceLevel,
+		&i.Benefits,
+		&i.SalaryVisible,
+		&i.ExpiresAt,
+		&i.PublishedAt,
+		&i.DeletedAt,
+		&i.ModerationStatus,
+		&i.CreatedByUserID,
+	)
+	return i, err
+}
+
+const updateNativeJob = `-- name: UpdateNativeJob :one
+UPDATE jobhub.jobs j
+SET title = $1,
+    category = $2,
+    description = $3,
+    responsibilities = $4,
+    requirements = $5,
+    nice_to_have = $6,
+    skills = $7::text[],
+    location_raw = $8,
+    work_mode = $9,
+    employment_type = $10,
+    experience_level = $11,
+    salary_min = $12,
+    salary_max = $13,
+    salary_currency = $14,
+    salary_period = $15,
+    salary_visible = $16,
+    benefits = $17::text[],
+    expires_at = $18,
+    updated_at = now()
+WHERE j.id = $19
+  AND j.source = 'jobhub'
+  AND j.deleted_at IS NULL
+  AND j.publication_status <> 'closed'
+  AND EXISTS (
+      SELECT 1 FROM jobhub.company_memberships cm
+      WHERE cm.company_id = j.company_id
+        AND cm.user_id = $20
+        AND cm.role = 'owner'
+  )
+RETURNING j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+`
+
+type UpdateNativeJobParams struct {
+	Title            string
+	Category         pgtype.Text
+	Description      pgtype.Text
+	Responsibilities pgtype.Text
+	Requirements     pgtype.Text
+	NiceToHave       pgtype.Text
+	Skills           []string
+	Location         pgtype.Text
+	WorkMode         pgtype.Text
+	EmploymentType   pgtype.Text
+	ExperienceLevel  pgtype.Text
+	SalaryMin        pgtype.Numeric
+	SalaryMax        pgtype.Numeric
+	SalaryCurrency   pgtype.Text
+	SalaryPeriod     pgtype.Text
+	SalaryVisible    bool
+	Benefits         []string
+	ExpiresAt        pgtype.Timestamptz
+	ID               pgtype.UUID
+	UserID           pgtype.UUID
+}
+
+func (q *Queries) UpdateNativeJob(ctx context.Context, arg UpdateNativeJobParams) (JobhubJob, error) {
+	row := q.db.QueryRow(ctx, updateNativeJob,
+		arg.Title,
+		arg.Category,
+		arg.Description,
+		arg.Responsibilities,
+		arg.Requirements,
+		arg.NiceToHave,
+		arg.Skills,
+		arg.Location,
+		arg.WorkMode,
+		arg.EmploymentType,
+		arg.ExperienceLevel,
+		arg.SalaryMin,
+		arg.SalaryMax,
+		arg.SalaryCurrency,
+		arg.SalaryPeriod,
+		arg.SalaryVisible,
+		arg.Benefits,
+		arg.ExpiresAt,
+		arg.ID,
+		arg.UserID,
+	)
+	var i JobhubJob
+	err := row.Scan(
+		&i.ID,
+		&i.Source,
+		&i.ExternalID,
+		&i.SourceUrl,
+		&i.UpstreamSourceName,
+		&i.CompanyID,
+		&i.CompanySourceID,
+		&i.CompanyNameRaw,
+		&i.Title,
+		&i.LocationRaw,
+		&i.Description,
+		&i.DescriptionKind,
+		&i.EmploymentTypeRaw,
+		&i.SalaryRaw,
+		&i.SalaryMin,
+		&i.SalaryMax,
+		&i.SalaryCurrency,
+		&i.SalaryPeriod,
+		&i.SalaryGross,
+		&i.SalaryIsEstimated,
+		&i.ApplicationMethod,
+		&i.ApplyUrl,
+		&i.SourceStatus,
+		&i.PublicationStatus,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.LastSyncedAt,
+		&i.FreshUntil,
+		&i.ExternalCreatedAt,
+		&i.ExternalPublishedAt,
+		&i.ExternalUpdatedAt,
+		&i.ExternalUpdatedRaw,
+		&i.ExternalExpiresAt,
+		&i.ExternalArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Category,
+		&i.Responsibilities,
+		&i.Requirements,
+		&i.NiceToHave,
+		&i.Skills,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.ExperienceLevel,
+		&i.Benefits,
+		&i.SalaryVisible,
+		&i.ExpiresAt,
+		&i.PublishedAt,
+		&i.DeletedAt,
+		&i.ModerationStatus,
+		&i.CreatedByUserID,
+	)
+	return i, err
 }
 
 const upsertImportedJob = `-- name: UpsertImportedJob :one

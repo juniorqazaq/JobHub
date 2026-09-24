@@ -93,6 +93,21 @@ type JobhubJob struct {
 	ExternalArchivedAt  pgtype.Timestamptz
 	CreatedAt           pgtype.Timestamptz
 	UpdatedAt           pgtype.Timestamptz
+	Category            pgtype.Text
+	Responsibilities    pgtype.Text
+	Requirements        pgtype.Text
+	NiceToHave          pgtype.Text
+	Skills              []string
+	WorkMode            pgtype.Text
+	EmploymentType      pgtype.Text
+	ExperienceLevel     pgtype.Text
+	Benefits            []string
+	SalaryVisible       bool
+	ExpiresAt           pgtype.Timestamptz
+	PublishedAt         pgtype.Timestamptz
+	DeletedAt           pgtype.Timestamptz
+	ModerationStatus    string
+	CreatedByUserID     pgtype.UUID
 }
 
 type JobhubJobSource struct {

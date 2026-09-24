@@ -17,19 +17,25 @@ type Querier interface {
 	CreateCompany(ctx context.Context, name string) (JobhubCompany, error)
 	CreateCompanyMembership(ctx context.Context, arg CreateCompanyMembershipParams) (JobhubCompanyMembership, error)
 	CreateIngestionRun(ctx context.Context, arg CreateIngestionRunParams) (pgtype.UUID, error)
+	CreateNativeJob(ctx context.Context, arg CreateNativeJobParams) (JobhubJob, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (JobhubSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (JobhubUser, error)
 	DatabaseTime(ctx context.Context) (pgtype.Timestamptz, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	FailIngestionRun(ctx context.Context, arg FailIngestionRunParams) error
 	GetCompanyForUser(ctx context.Context, userID pgtype.UUID) (JobhubCompany, error)
+	GetEmployerJob(ctx context.Context, arg GetEmployerJobParams) (JobhubJob, error)
 	GetPublicJob(ctx context.Context, arg GetPublicJobParams) (JobhubJob, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (JobhubUser, error)
 	GetUserByNormalizedEmail(ctx context.Context, normalizedEmail string) (JobhubUser, error)
 	ImportedJobExists(ctx context.Context, arg ImportedJobExistsParams) (bool, error)
+	ListEmployerJobs(ctx context.Context, userID pgtype.UUID) ([]JobhubJob, error)
 	ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]JobhubJob, error)
 	RevokeSession(ctx context.Context, id pgtype.UUID) error
+	SoftDeleteNativeJob(ctx context.Context, arg SoftDeleteNativeJobParams) (pgtype.UUID, error)
+	TransitionNativeJob(ctx context.Context, arg TransitionNativeJobParams) (JobhubJob, error)
+	UpdateNativeJob(ctx context.Context, arg UpdateNativeJobParams) (JobhubJob, error)
 	UpsertImportedJob(ctx context.Context, arg UpsertImportedJobParams) (pgtype.UUID, error)
 }
 
