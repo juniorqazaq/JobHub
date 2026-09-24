@@ -12,6 +12,7 @@ export function mapJobDto(dto: JobDto): JobSummary {
       verified: dto.company.verified,
     },
     location: dto.location,
+    cityId: dto.city_id,
     workMode: dto.work_mode,
     employmentType: dto.employment_type,
     experienceLevel: dto.experience_level,

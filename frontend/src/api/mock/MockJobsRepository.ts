@@ -14,7 +14,6 @@ export class MockJobsRepository implements JobsRepository {
   async search(params: JobSearchParams): Promise<JobSearchResponse> {
     await wait();
     const query = params.query?.trim().toLocaleLowerCase();
-    const location = params.location?.trim().toLocaleLowerCase();
     const page = Math.max(params.page ?? 1, 1);
     const pageSize = Math.max(params.pageSize ?? 10, 1);
 
@@ -24,11 +23,17 @@ export class MockJobsRepository implements JobsRepository {
         [job.title, job.company.name, ...job.tags].some((value) =>
           value.toLocaleLowerCase().includes(query),
         );
-      const matchesLocation = !location || job.location.toLocaleLowerCase().includes(location);
-      return matchesQuery && matchesLocation;
+      const matchesCity = !params.city || job.cityId === params.city;
+      const matchesMode = !params.workModes?.length || Boolean(job.workMode && params.workModes.includes(job.workMode));
+      const matchesSalary = params.salaryMin == null || Boolean(job.salary && job.salary.period === "month" && job.salary.currency === params.currency && (job.salary.max ?? job.salary.min) >= params.salaryMin);
+      const matchesExperience = !params.experience || job.experienceLevel === params.experience;
+      const matchesEmployment = !params.employment || job.employmentType === params.employment;
+      const cutoff = params.datePosted ? Date.now() - ({ "24h": 1, "3d": 3, "7d": 7, "30d": 30 }[params.datePosted] * 86400000) : 0;
+      return matchesQuery && matchesCity && matchesMode && matchesSalary && matchesExperience && matchesEmployment && (!cutoff || new Date(job.postedAt).getTime() >= cutoff);
     });
 
     filtered.sort((a, b) => {
+      if (params.preferredCity && a.cityId !== b.cityId) return a.cityId === params.preferredCity ? -1 : b.cityId === params.preferredCity ? 1 : 0;
       const difference = new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime();
       return params.sort === "oldest" ? -difference : difference;
     });

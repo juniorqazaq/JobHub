@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, FilePlus2, Pencil, Play, Pause, XCircle, Trash2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { displayJobLocation } from "../lib/jobLocation";
 import { Link } from "react-router-dom";
 import type { PublicationStatus } from "../api/models/job";
 import { repositories } from "../api/repositories";
@@ -30,7 +31,7 @@ export function EmployerVacanciesPage() {
     {jobs.isError ? <ErrorState title={t("employer.loadErrorTitle")} description={t("employer.loadErrorDescription")} actionLabel={t("common.retry")} onAction={() => void jobs.refetch()} /> : null}
     {jobs.data?.length === 0 ? <EmptyState title={t("employer.emptyTitle")} description={t("employer.emptyDescription")} secondary={<Link className="text-link" to="/employer/vacancies/new">{t("employer.createVacancy")}</Link>} /> : null}
     {jobs.data?.length ? <div className="employer-job-list">{jobs.data.map((job) => <article className="employer-job-row" key={job.id}>
-      <div className="employer-job-row__main"><div className="employer-job-row__title"><h2>{job.title}</h2><span className={`status-badge status-badge--${job.publicationStatus}`}>{t(`employer.statuses.${job.publicationStatus}`)}</span></div><p>{job.location} · {t(`employer.workModes.${job.workMode}`)}</p><small>{t("employer.updatedAt", { date: formatDate(job.updatedAt || job.postedAt, i18n.language) })}</small></div>
+      <div className="employer-job-row__main"><div className="employer-job-row__title"><h2>{job.title}</h2><span className={`status-badge status-badge--${job.publicationStatus}`}>{t(`employer.statuses.${job.publicationStatus}`)}</span></div><p>{displayJobLocation(job, i18n.language)} · {t(`employer.workModes.${job.workMode}`)}</p><small>{t("employer.updatedAt", { date: formatDate(job.updatedAt || job.postedAt, i18n.language) })}</small></div>
       <div className="employer-job-row__salary">{job.salary ? formatSalary(job.salary, i18n.language, t(`employer.salaryPeriods.${job.salary.period}`)) : t("common.notProvided")}</div>
       <div className="employer-job-row__actions">
         {job.publicationStatus === "published" ? <Link className="ui-button ui-button--quiet ui-button--sm" to={`/jobs/${job.id}`}><ExternalLink size={15} aria-hidden="true" /><span>{t("employer.view")}</span></Link> : null}

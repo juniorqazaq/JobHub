@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import type {
@@ -26,6 +26,8 @@ import { useToast } from "../components/ui/useToast";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 import { CandidateIdentityHeader } from "../components/candidate/CandidateIdentityHeader";
 import { CandidateAccountSection } from "../components/candidate/CandidateAccountSection";
+import { CitySelect } from "../components/location/CitySelect";
+import { cityName, isCityId } from "../lib/cities";
 import {
   formatProfilePhone,
   isValidBirthDate,
@@ -37,7 +39,7 @@ const optionalUrl = z.string().refine((value) => !value || safeProfileUrl(value)
 const schema = z.object({
   fullName: z.string().trim().min(1),
   photoUrl: optionalUrl,
-  city: z.string(),
+  cityId: z.string(),
   birthYear: z.string(),
   birthDate: z.string().refine(isValidBirthDate),
   phone: z.string().refine((value) => !value || normalizeProfilePhone(value)),
@@ -59,6 +61,7 @@ const schema = z.object({
   currency: z.string(),
   salaryPeriod: z.enum(["", "month", "year"]),
   preferredLocations: z.string(),
+  preferredCityIds: z.array(z.string()),
   preferredEmploymentTypes: z.array(z.string()),
   preferredWorkModes: z.array(z.string()),
   preferredCategories: z.string(),
@@ -244,9 +247,18 @@ export function ProfilePage() {
                 }
                 {...form.register("fullName")}
               />
-              <Input
-                label={t("profile.fields.city")}
-                {...form.register("city")}
+              <Controller
+                control={form.control}
+                name="cityId"
+                render={({ field }) => (
+                  <CitySelect
+                    label={t("profile.fields.city")}
+                    anyLabel={t("common.notProvided")}
+                    value={field.value}
+                    legacyLabel={profile.data?.city}
+                    onChange={field.onChange}
+                  />
+                )}
               />
               <Input
                 label={t("profile.fields.birthDate")}
@@ -645,7 +657,7 @@ function ProfileView({ profile }: { profile: CandidateProfile }) {
       <ProfileSection title={t("profile.sections.about")}>
         <dl className="profile-view-grid">
           <ProfileFact label={t("profile.fields.fullName")} value={profile.fullName} />
-          <ProfileFact label={t("profile.fields.city")} value={profile.city || empty} />
+          <ProfileFact label={t("profile.fields.city")} value={cityName(profile.cityId, i18n.resolvedLanguage ?? i18n.language) || profile.city || empty} />
           <ProfileFact label={t("profile.fields.birthDate")} value={birthDate} />
           <ProfileFact
             label={t("profile.fields.phone")}
@@ -763,7 +775,7 @@ function emptyValues(): FormValues {
   return {
     fullName: "",
     photoUrl: "",
-    city: "",
+    cityId: "",
     birthYear: "",
     birthDate: "",
     phone: "",
@@ -778,6 +790,7 @@ function emptyValues(): FormValues {
     currency: "KZT",
     salaryPeriod: "month",
     preferredLocations: "",
+    preferredCityIds: [],
     preferredEmploymentTypes: [],
     preferredWorkModes: [],
     preferredCategories: "",
@@ -799,7 +812,7 @@ function toForm(p: CandidateProfile): FormValues {
   return {
     fullName: p.fullName,
     photoUrl: p.photoUrl ?? "",
-    city: p.city ?? "",
+    cityId: p.cityId ?? (p.city ? `legacy:${p.city}` : ""),
     birthYear: p.birthYear?.toString() ?? "",
     birthDate: p.birthDate ?? "",
     phone: p.phone ?? "",
@@ -814,6 +827,7 @@ function toForm(p: CandidateProfile): FormValues {
     currency: p.currency ?? "KZT",
     salaryPeriod: p.salaryPeriod ?? "month",
     preferredLocations: p.preferredLocations.join(", "),
+    preferredCityIds: p.preferredCityIds,
     preferredEmploymentTypes: p.preferredEmploymentTypes,
     preferredWorkModes: p.preferredWorkModes,
     preferredCategories: p.preferredCategories.join(", "),
@@ -846,7 +860,8 @@ function toInput(v: FormValues): CandidateProfileInput {
   return {
     fullName: v.fullName,
     photoUrl: v.photoUrl || undefined,
-    city: v.city || undefined,
+    city: isCityId(v.cityId) ? cityName(v.cityId, "en") : v.cityId.startsWith("legacy:") ? v.cityId.slice(7) : undefined,
+    cityId: isCityId(v.cityId) ? v.cityId : undefined,
     birthYear: number(v.birthYear),
     birthDate: v.birthDate || undefined,
     phone: normalizeProfilePhone(v.phone),
@@ -862,6 +877,7 @@ function toInput(v: FormValues): CandidateProfileInput {
     currency: v.currency || undefined,
     salaryPeriod: v.salaryPeriod || undefined,
     preferredLocations: list(v.preferredLocations),
+    preferredCityIds: v.preferredCityIds,
     preferredEmploymentTypes: v.preferredEmploymentTypes as EmploymentType[],
     preferredWorkModes: v.preferredWorkModes as WorkMode[],
     preferredCategories: list(v.preferredCategories),

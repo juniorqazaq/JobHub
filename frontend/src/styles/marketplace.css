@@ -61,6 +61,10 @@
 .site-nav a { height: var(--header-height); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; }
 .site-nav a.active { border-color: var(--color-primary); color: var(--color-primary); font-weight: 700; }
 .site-nav__location { gap: var(--space-2); }
+.site-nav__location .header-city-select { display: block; }
+.site-nav__location .header-city-select > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.site-nav__location .header-city-select select { width: 10rem; min-height: 2.5rem; border-color: transparent; background: transparent; color: var(--color-text-secondary); font-weight: 650; }
+.site-nav__location .header-city-select select:hover { border-color: var(--color-border); }
 
 .site-header__actions { gap: var(--space-3); }
 .candidate-menu-link { display: inline-flex; min-width: 0; align-items: center; gap: var(--space-2); color: var(--color-text-primary); text-decoration: none; }
@@ -84,6 +88,7 @@
 .market-search { display: grid; gap: var(--space-3); text-align: left; }
 .market-search--hero,
 .market-search--compact { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) auto; align-items: end; }
+.market-search--without-city { grid-template-columns: minmax(0, 1fr) auto; }
 .market-search--hero { max-width: 64rem; margin-inline: auto; }
 .market-search__field { display: grid; gap: var(--space-2); min-width: 0; color: var(--color-text-primary); font-family: var(--font-display); font-size: var(--text-14); font-weight: 700; }
 .market-search--hero .market-search__field > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
@@ -91,6 +96,7 @@
 .market-search__control > svg { position: absolute; top: 50%; left: var(--space-4); color: var(--color-text-muted); transform: translateY(-50%); pointer-events: none; }
 .market-search__control input { width: 100%; min-height: 3.25rem; padding: 0 var(--space-4) 0 3rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text-primary); font-family: var(--font-body); font-size: var(--text-16); font-weight: 400; transition: border-color var(--transition-fast), box-shadow var(--transition-fast); }
 .market-search--hero .market-search__control input { min-height: 3.75rem; font-size: var(--text-18); }
+.market-search--hero .city-select select { min-height: 3.75rem; font-size: var(--text-18); }
 .market-search__control input:hover { border-color: var(--color-text-muted); }
 .market-search__control input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); outline: 0; }
 .market-search__field small { color: var(--color-error); font-family: var(--font-body); font-weight: 600; }
@@ -142,6 +148,15 @@
 .filter-rail dt { margin-bottom: var(--space-1); color: var(--color-text-muted); font-size: var(--text-14); }
 .filter-rail dd { margin: 0; color: var(--color-text-primary); font-weight: 650; overflow-wrap: anywhere; }
 .filter-rail .ui-button { width: 100%; }
+.job-filters { display: grid; gap: var(--space-5); padding-top: var(--space-5); }
+.filter-fieldset { display: grid; gap: var(--space-2); padding: 0; border: 0; }
+.filter-fieldset legend { margin-bottom: var(--space-1); color: var(--color-text-primary); font-weight: 750; }
+.filter-salary { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: var(--space-2); }
+.filter-salary .ui-button { grid-column: 1 / -1; }
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.active-filters button { display: inline-flex; min-height: 2.25rem; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-text-secondary); cursor: pointer; }
+.active-filters button:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.active-filters .active-filters__reset { border-color: transparent; background: transparent; color: var(--color-primary); font-weight: 750; }
 .results-toolbar { min-height: 3.25rem; display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); margin-bottom: var(--space-4); }
 .results-toolbar h2 { margin: 0; font-size: var(--text-18); }
 .results-toolbar label { display: flex; align-items: center; gap: var(--space-3); color: var(--color-text-muted); font-size: var(--text-14); }
@@ -415,6 +430,11 @@
 .preference-value-group p { margin: 0; color: var(--color-text-secondary); }
 .preference-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .preference-chips li, .tag-input__chip { max-width: 100%; padding: .4rem .7rem; border: 1px solid var(--color-border); border-radius: var(--radius-full); background: var(--color-background); color: var(--color-text-secondary); font-size: var(--text-14); font-weight: 700; overflow-wrap: anywhere; }
+.city-multi-select { display: grid; gap: var(--space-3); }
+.city-multi-select .preference-chips li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.city-multi-select .preference-chips button { display: inline-grid; width: 1.75rem; height: 1.75rem; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.city-multi-select .preference-chips button:hover { background: var(--color-border); color: var(--color-text-primary); }
+.city-multi-select .preference-chips .is-legacy { border-style: dashed; }
 .preference-tag-fields { display: grid; gap: var(--space-5); }
 .tag-input__control { display: flex; min-height: var(--control-height); flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: .35rem .5rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); }
 .tag-input__control:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }

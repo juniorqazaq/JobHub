@@ -46,6 +46,7 @@ export interface JobSummary {
   title: string;
   company: CompanySummary;
   location: string;
+  cityId?: string;
   workMode?: WorkMode;
   employmentType?: EmploymentType | string;
   experienceLevel?: ExperienceLevel;
@@ -85,7 +86,7 @@ export interface NativeJobInput {
   requirements: string;
   niceToHave?: string;
   skills: string[];
-  location: string;
+  cityId: string;
   workMode: WorkMode;
   employmentType: EmploymentType;
   experienceLevel: ExperienceLevel;
@@ -100,7 +101,14 @@ export interface NativeJobInput {
 
 export interface JobSearchParams {
   query?: string;
-  location?: string;
+  city?: string;
+  preferredCity?: string;
+  workModes?: WorkMode[];
+  salaryMin?: number;
+  currency?: "KZT" | "USD" | "EUR";
+  experience?: ExperienceLevel;
+  employment?: EmploymentType;
+  datePosted?: "24h" | "3d" | "7d" | "30d";
   sort?: JobSort;
   page?: number;
   pageSize?: number;

@@ -8,17 +8,19 @@ import { MarketplaceJobRow } from "../components/jobs/MarketplaceJobRow";
 import { EmptyState, ErrorState, JobListSkeleton } from "../components/ui/Feedback";
 import { SiteShell } from "../layouts/SiteShell";
 import { serializeJobSearchParams } from "../lib/jobSearchParams";
+import { usePreferredSearchCity } from "../lib/searchCityPreference";
 
 export function HomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const preferredCity = usePreferredSearchCity();
   const latestJobs = useQuery({
-    queryKey: ["jobs", "latest", 3],
-    queryFn: () => repositories.jobs.search({ page: 1, pageSize: 3, sort: "newest" }),
+    queryKey: ["jobs", "latest", 3, preferredCity],
+    queryFn: () => repositories.jobs.search({ page: 1, pageSize: 3, sort: "newest", preferredCity }),
   });
 
   const search = (values: JobSearchValues) => {
-    const params = serializeJobSearchParams({ query: values.query || undefined, location: values.location || undefined, sort: "newest", page: 1 });
+    const params = serializeJobSearchParams({ query: values.query || undefined, city: values.city || undefined, sort: "newest", page: 1 });
     void navigate({ pathname: "/jobs", search: params.toString() });
   };
 
@@ -28,7 +30,7 @@ export function HomePage() {
         <div className="page-container home-hero__inner">
           <h1>{t("home.title")}</h1>
           <p>{t("home.description")}</p>
-          <JobSearchForm variant="hero" onSubmit={search} />
+          <JobSearchForm variant="hero" initialValues={{ city: preferredCity }} onSubmit={search} />
         </div>
       </section>
       <section className="page-container latest-jobs" aria-labelledby="latest-jobs-title">

@@ -10,10 +10,12 @@ import type { EmploymentType, WorkMode } from "../api/models/job";
 import { repositories } from "../api/repositories";
 import { useAuth } from "../app/authContext";
 import { Button } from "../components/ui/Button";
+import { CityMultiSelect } from "../components/location/CityMultiSelect";
 import { Checkbox, Input, Select } from "../components/ui/FormControls";
 import { TagInput } from "../components/ui/TagInput";
 import { useToast } from "../components/ui/useToast";
 import { editableProfile } from "../lib/candidateProfile";
+import { cityName, kazakhstanCities } from "../lib/cities";
 
 const schema = z.object({
   desiredSalary: z.string().refine(
@@ -22,7 +24,7 @@ const schema = z.object({
   ),
   currency: z.string().trim().regex(/^[A-Za-z]{3}$/),
   salaryPeriod: z.enum(["month", "year"]),
-  preferredLocations: z.array(z.string()),
+  preferredCityIds: z.array(z.string()),
   preferredEmploymentTypes: z.array(z.string()),
   preferredWorkModes: z.array(z.string()),
   preferredCategories: z.array(z.string()),
@@ -61,7 +63,8 @@ export function JobPreferencesSection({ profile }: { profile: CandidateProfile }
           desiredSalary: values.desiredSalary === "" ? undefined : Number(values.desiredSalary),
           currency: values.currency.toUpperCase(),
           salaryPeriod: values.salaryPeriod,
-          preferredLocations: values.preferredLocations,
+          preferredLocations: profile.preferredLocations,
+          preferredCityIds: values.preferredCityIds,
           preferredEmploymentTypes: values.preferredEmploymentTypes as EmploymentType[],
           preferredWorkModes: values.preferredWorkModes as WorkMode[],
           preferredCategories: values.preferredCategories,
@@ -138,8 +141,8 @@ export function JobPreferencesSection({ profile }: { profile: CandidateProfile }
               </Select>
             </div>
             <div className="preference-tag-fields">
-              <Controller control={form.control} name="preferredLocations" render={({ field }) => (
-                <TagInput label={t("profile.fields.preferredLocations")} value={field.value} onChange={field.onChange} placeholder={t("preferences.tagPlaceholder")} hint={t("preferences.tagHint")} removeLabel={(value) => t("preferences.removeTag", { value })} />
+              <Controller control={form.control} name="preferredCityIds" render={({ field }) => (
+                <CityMultiSelect label={t("profile.fields.preferredLocations")} addLabel={t("preferences.addCity")} value={field.value} onChange={field.onChange} legacyValues={profile.preferredLocations} removeLabel={(value) => t("preferences.removeTag", { value })} />
               )} />
               <Controller control={form.control} name="preferredRoles" render={({ field }) => (
                 <TagInput label={t("profile.fields.preferredRoles")} value={field.value} onChange={field.onChange} placeholder={t("preferences.tagPlaceholder")} hint={t("preferences.tagHint")} removeLabel={(value) => t("preferences.removeTag", { value })} />
@@ -184,7 +187,7 @@ function PreferenceView({ profile, locale }: { profile: CandidateProfile; locale
         <PreferenceValue label={t("profile.fields.desiredSalary")} value={formatSalary(profile, locale, t)} />
         <PreferenceValue label={t("profile.fields.searchStatus")} value={t(`profile.searchStatuses.${profile.searchStatus}`)} />
       </dl>
-      <PreferenceTags label={t("profile.fields.preferredLocations")} values={profile.preferredLocations} missing={missing} />
+      <PreferenceTags label={t("profile.fields.preferredLocations")} values={preferredCityNames(profile, locale)} missing={missing} />
       <PreferenceTags label={t("profile.fields.preferredRoles")} values={profile.preferredRoles} missing={missing} />
       <PreferenceTags label={t("profile.fields.preferredCategories")} values={profile.preferredCategories} missing={missing} />
       <PreferenceTags label={t("profile.fields.preferredWorkModes")} values={profile.preferredWorkModes.map((value) => t(`employer.workModes.${value}`))} missing={missing} />
@@ -211,12 +214,19 @@ function formatSalary(profile: CandidateProfile, locale: string, t: (key: string
   const period = profile.salaryPeriod ? ` / ${t(`preferences.periods.${profile.salaryPeriod}`)}` : "";
   return `${amount}${currency}${period}`;
 }
+function preferredCityNames(profile: CandidateProfile, locale: string) {
+  const canonical = profile.preferredCityIds.map((id) => cityName(id, locale)).filter(Boolean);
+  const legacy = profile.preferredLocations.filter(
+    (value) => !kazakhstanCities.some((city) => city.names.en === value),
+  );
+  return [...canonical, ...legacy];
+}
 function toForm(profile: CandidateProfile): FormValues {
   return {
     desiredSalary: profile.desiredSalary?.toString() ?? "",
     currency: profile.currency ?? "KZT",
     salaryPeriod: profile.salaryPeriod ?? "month",
-    preferredLocations: profile.preferredLocations,
+    preferredCityIds: profile.preferredCityIds,
     preferredEmploymentTypes: profile.preferredEmploymentTypes,
     preferredWorkModes: profile.preferredWorkModes,
     preferredCategories: profile.preferredCategories,

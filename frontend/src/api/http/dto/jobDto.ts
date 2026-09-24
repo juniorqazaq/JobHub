@@ -15,6 +15,7 @@ export interface JobDto {
     verified: boolean;
   };
   location: string;
+  city_id?: string;
   work_mode?: WorkMode;
   employment_type?: EmploymentType | string;
   experience_level?: ExperienceLevel;

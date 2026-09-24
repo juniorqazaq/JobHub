@@ -8,6 +8,7 @@ import { SiteShell } from "../layouts/SiteShell";
 import { JobSaveButton } from "../components/jobs/JobSaveButton";
 import { ApplyAction } from "../components/jobs/ApplyAction";
 import { formatSalary } from "../lib/formatSalary";
+import { displayJobLocation } from "../lib/jobLocation";
 
 interface DetailLocationState { from?: string }
 
@@ -30,7 +31,7 @@ export function JobDetailPage() {
               <h1>{job.data.title}</h1>
               <p className="detail-company">{job.data.company.name || t("common.notProvided")}</p>
               <div className="detail-facts">
-                <span><MapPin size={19} aria-hidden="true" />{job.data.location || t("common.notProvided")}</span>
+                <span><MapPin size={19} aria-hidden="true" />{displayJobLocation(job.data, i18n.language) || t("common.notProvided")}</span>
                 {job.data.salaryRaw || job.data.salary ? <strong>{job.data.salaryRaw || formatSalary(job.data.salary!, i18n.language, t(`employer.salaryPeriods.${job.data.salary!.period}`))}</strong> : null}
                 {job.data.employmentType ? <span><BriefcaseBusiness size={19} aria-hidden="true" />{job.data.source.type === "native" ? t(`employer.employmentTypes.${job.data.employmentType}`) : job.data.employmentType}</span> : null}
               </div>

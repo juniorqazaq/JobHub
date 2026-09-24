@@ -1,9 +1,12 @@
 import { Globe2, LogOut, MapPin } from "lucide-react";
 import { useEffect, type PropsWithChildren } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/authContext";
 import { IconButton } from "../components/ui/Button";
+import { CitySelect } from "../components/location/CitySelect";
+import { isCityId } from "../lib/cities";
+import { setSearchCityPreference, usePreferredSearchCity } from "../lib/searchCityPreference";
 
 type Language = "kk" | "ru" | "en";
 
@@ -11,11 +14,25 @@ export function SiteShell({ children }: PropsWithChildren) {
   const { t, i18n } = useTranslation();
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const preferredCity = usePreferredSearchCity();
   const language = supportedLanguage(i18n.language);
 
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
+  const urlCity = location.pathname === "/jobs" ? new URLSearchParams(location.search).get("city") : null;
+  const selectedCity = isCityId(urlCity) ? urlCity : preferredCity;
+  const changeCity = (value: string) => {
+    const city = isCityId(value) ? value : undefined;
+    setSearchCityPreference(city);
+    if (location.pathname === "/jobs") {
+      const params = new URLSearchParams(location.search);
+      if (city) params.set("city", city); else params.delete("city");
+      params.delete("page");
+      void navigate({ pathname: "/jobs", search: params.toString() });
+    }
+  };
 
   return (
     <div className="site-shell">
@@ -48,10 +65,7 @@ export function SiteShell({ children }: PropsWithChildren) {
             {auth.session?.user.role === "admin" ? (
               <NavLink to="/admin">{t("nav.admin")}</NavLink>
             ) : null}
-            <span className="site-nav__location">
-              <MapPin size={16} aria-hidden="true" />
-              {t("nav.location")}
-            </span>
+            <span className="site-nav__location"><MapPin size={16} aria-hidden="true" /><CitySelect className="header-city-select" label={t("nav.location")} anyLabel={t("jobs.anyLocation")} value={selectedCity} onChange={changeCity} /></span>
           </nav>
           <div className="site-header__actions">
             <label className="language-select">

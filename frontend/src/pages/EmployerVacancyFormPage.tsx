@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { ArrowLeft, Send, Save } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
@@ -21,13 +21,14 @@ import {
 } from "../components/ui/FormControls";
 import { useToast } from "../components/ui/useToast";
 import { SiteShell } from "../layouts/SiteShell";
+import { CitySelect } from "../components/location/CitySelect";
+import { isCityId } from "../lib/cities";
 
 const limits = {
   title: 200,
   category: 120,
   description: 20000,
   listText: 12000,
-  location: 300,
   skill: 100,
   benefit: 500,
   items: 50,
@@ -64,11 +65,7 @@ const schema = z
       .max(limits.listText, "tooLong"),
     niceToHave: z.string().max(limits.listText, "tooLong"),
     skills: z.string().refine(validCommaList, "invalidList"),
-    location: z
-      .string()
-      .trim()
-      .min(2, "required")
-      .max(limits.location, "tooLong"),
+    cityId: z.string().refine((value): boolean => isCityId(value), "required"),
     workMode: z.enum(["on_site", "hybrid", "remote"]),
     employmentType: z.enum([
       "full_time",
@@ -111,7 +108,7 @@ const defaults: FormValues = {
   requirements: "",
   niceToHave: "",
   skills: "",
-  location: "",
+  cityId: "",
   workMode: "on_site",
   employmentType: "full_time",
   experienceLevel: "middle",
@@ -153,7 +150,7 @@ export function EmployerVacancyFormPage() {
       requirements: job.data.requirements || "",
       niceToHave: job.data.niceToHave || "",
       skills: job.data.tags.join(", "),
-      location: job.data.location,
+      cityId: job.data.cityId || (job.data.location ? `legacy:${job.data.location}` : ""),
       workMode: job.data.workMode || "on_site",
       employmentType:
         job.data.employmentType === "part_time" ||
@@ -271,12 +268,7 @@ export function EmployerVacancyFormPage() {
                   error={fieldError(form.formState.errors.category?.message, t)}
                   {...form.register("category")}
                 />
-                <Input
-                  maxLength={limits.location}
-                  label={t("employer.fields.location")}
-                  error={fieldError(form.formState.errors.location?.message, t)}
-                  {...form.register("location")}
-                />
+                <Controller control={form.control} name="cityId" render={({ field }) => <CitySelect label={t("employer.fields.location")} anyLabel={t("employer.selectCity")} required value={field.value} legacyLabel={job.data?.cityId ? undefined : job.data?.location} error={fieldError(form.formState.errors.cityId?.message, t)} onChange={field.onChange} />} />
                 <Select
                   label={t("employer.fields.workMode")}
                   {...form.register("workMode")}
@@ -464,7 +456,7 @@ function toInput(v: FormValues): NativeJobInput {
     requirements: v.requirements,
     niceToHave: v.niceToHave || undefined,
     skills: split(v.skills, /,/),
-    location: v.location,
+    cityId: v.cityId,
     workMode: v.workMode,
     employmentType: v.employmentType,
     experienceLevel: v.experienceLevel,

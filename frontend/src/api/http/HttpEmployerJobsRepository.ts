@@ -40,7 +40,7 @@ function toRequest(input: NativeJobInput) {
   return {
     title: input.title, category: input.category, description: input.description,
     responsibilities: input.responsibilities, requirements: input.requirements,
-    nice_to_have: input.niceToHave || undefined, skills: input.skills, location: input.location,
+    nice_to_have: input.niceToHave || undefined, skills: input.skills, city_id: input.cityId,
     work_mode: input.workMode, employment_type: input.employmentType,
     experience_level: input.experienceLevel, salary_min: input.salaryMin,
     salary_max: input.salaryMax, salary_currency: input.salaryCurrency || undefined,

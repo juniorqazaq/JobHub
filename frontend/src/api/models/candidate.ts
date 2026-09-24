@@ -71,6 +71,7 @@ export interface CandidateProfile {
   fullName: string;
   photoUrl?: string;
   city?: string;
+  cityId?: string;
   birthYear?: number;
   birthDate?: string;
   phone?: string;
@@ -86,6 +87,7 @@ export interface CandidateProfile {
   currency?: string;
   salaryPeriod?: "month" | "year";
   preferredLocations: string[];
+  preferredCityIds: string[];
   preferredEmploymentTypes: EmploymentType[];
   preferredWorkModes: WorkMode[];
   preferredCategories: string[];
