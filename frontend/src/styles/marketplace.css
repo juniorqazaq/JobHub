@@ -215,6 +215,23 @@
 .profile-list > div:last-child { border-bottom: 0; }
 .profile-list dt { color: var(--color-text-muted); }
 .profile-list dd { margin: 0; color: var(--color-text-primary); font-weight: 750; overflow-wrap: anywhere; }
+.account-page { padding-block: clamp(2rem, 5vw, 4.5rem); }
+.account-overview { width: min(100%, 58rem); }
+.account-header { display: flex; align-items: center; gap: var(--space-5); padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border); }
+.account-avatar { display: grid; flex: 0 0 auto; width: 4.75rem; height: 4.75rem; place-items: center; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary); font-family: var(--font-display); font-size: var(--text-24); font-weight: 800; }
+.account-header .auth-eyebrow { margin-bottom: var(--space-1); }
+.account-header h1 { margin: 0 0 var(--space-1); font-size: clamp(var(--text-28), 4vw, var(--text-40)); }
+.account-header__meta { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; color: var(--color-text-secondary); }
+.account-status { color: var(--color-success); font-weight: 750; }
+.account-status--suspended { color: var(--color-error); }
+.account-content { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 1fr); gap: var(--space-6); padding-top: var(--space-6); align-items: start; }
+.account-content h2 { margin-bottom: var(--space-4); font-size: var(--text-20); }
+.account-content .profile-list { width: 100%; margin: 0; }
+.account-next-step { padding: var(--space-5); border-left: 3px solid var(--color-primary); background: var(--color-primary-soft); }
+.account-next-step > svg { margin-bottom: var(--space-4); color: var(--color-primary); }
+.account-next-step h2 { margin-bottom: var(--space-2); }
+.account-next-step p { margin-bottom: var(--space-5); color: var(--color-text-secondary); }
+.account-next-step .ui-button { width: 100%; }
 
 @media (max-width: 64rem) {
   .site-header__inner { gap: var(--space-5); }
@@ -256,6 +273,9 @@
   .detail-facts { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
   .role-picker { grid-template-columns: 1fr; }
   .profile-list > div { grid-template-columns: 1fr; gap: var(--space-1); }
+  .account-header { align-items: flex-start; }
+  .account-avatar { width: 3.75rem; height: 3.75rem; font-size: var(--text-20); }
+  .account-content { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 32rem) {
