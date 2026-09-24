@@ -6,28 +6,27 @@ import { AuthContext } from "./authContext";
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
-  const sessionQuery = useQuery({
+  const sessionQuery = useQuery<AuthSession | null>({
     queryKey: ["auth", "me"],
     queryFn: () => repositories.auth.me(),
     retry: false,
   });
   const registerMutation = useMutation({
     mutationFn: (input: RegisterRequest) => repositories.auth.register(input),
-    onSuccess: (session) => queryClient.setQueryData(["auth", "me"], session),
+    onSuccess: (session) => queryClient.setQueryData<AuthSession | null>(["auth", "me"], session),
   });
   const loginMutation = useMutation({
     mutationFn: (input: LoginRequest) => repositories.auth.login(input),
-    onSuccess: (session) => queryClient.setQueryData(["auth", "me"], session),
+    onSuccess: (session) => queryClient.setQueryData<AuthSession | null>(["auth", "me"], session),
   });
 
   const logout = async () => {
     const session = queryClient.getQueryData<AuthSession>(["auth", "me"]);
     if (session?.csrfToken) await repositories.auth.logout(session.csrfToken);
-    queryClient.setQueryData(["auth", "me"], undefined);
-    await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    queryClient.setQueryData<AuthSession | null>(["auth", "me"], null);
   };
 
-  const session = sessionQuery.data;
+  const session = sessionQuery.data ?? undefined;
   return (
     <AuthContext.Provider
       value={{
