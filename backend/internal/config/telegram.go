@@ -84,20 +84,3 @@ func ValidateTelegramDevelopmentDatabase(environment, raw string) error {
 	}
 	return nil
 }
-
-func ValidateWebsiteDevelopmentDatabase(environment, raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || environment != "development" || (u.Scheme != "postgres" && u.Scheme != "postgresql") || (u.Hostname() != "127.0.0.1" && u.Hostname() != "::1") || u.Port() == "" || u.Fragment != "" || !regexp.MustCompile(`^/jobhub_website_poc_[A-Za-z0-9_]+$`).MatchString(u.Path) {
-		return errors.New("website import requires APP_ENV=development and an explicit loopback jobhub_website_poc_* database")
-	}
-	q, err := url.ParseQuery(u.RawQuery)
-	if err != nil {
-		return errors.New("invalid development database options")
-	}
-	for key := range q {
-		if key != "sslmode" {
-			return errors.New("database connection overrides are not allowed")
-		}
-	}
-	return nil
-}

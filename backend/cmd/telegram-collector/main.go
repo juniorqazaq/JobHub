@@ -64,21 +64,20 @@ func run(ctx context.Context, logger *slog.Logger, args []string) error {
 		logger.Info("telegram collector smoke check complete", "reason", "no_allowed_channels")
 		return nil
 	}
-	if len(cfg.Admins) > 0 {
-		if err := config.ValidateWebsiteDevelopmentDatabase(os.Getenv("APP_ENV"), cfg.DatabaseURL); err != nil {
+	var store *jobs.PostgresStore
+	if len(cfg.Allowed) > 0 {
+		if err := config.ValidateTelegramDevelopmentDatabase(os.Getenv("APP_ENV"), cfg.DatabaseURL); err != nil {
 			return err
 		}
-	} else if err := config.ValidateTelegramDevelopmentDatabase(os.Getenv("APP_ENV"), cfg.DatabaseURL); err != nil {
-		return err
+		pool, connectErr := database.Connect(ctx, cfg.DatabaseURL, envValue("PGX_QUERY_EXEC_MODE", "cache_statement"))
+		if connectErr != nil {
+			return errors.New("Telegram development database connection failed")
+		}
+		defer pool.Close()
+		store = jobs.NewPostgresStore(pool)
 	}
-	pool, err := database.Connect(ctx, cfg.DatabaseURL, envValue("PGX_QUERY_EXEC_MODE", "cache_statement"))
-	if err != nil {
-		return errors.New("Telegram development database connection failed")
-	}
-	defer pool.Close()
-	store := jobs.NewPostgresStore(pool)
 	processor := telegramcollector.NewProcessor(cfg.Allowed, store, store, logger)
-	commands := telegramcollector.NewCommandProcessor(cfg.Admins, webscanner.New(&http.Client{}), client, store, store, logger)
+	commands := telegramcollector.NewCommandProcessor(cfg.Admins, webscanner.New(&http.Client{}), client, logger)
 	offset, err := telegramprovider.LoadOffset(cfg.OffsetFile)
 	if err != nil {
 		return err

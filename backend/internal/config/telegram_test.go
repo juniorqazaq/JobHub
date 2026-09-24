@@ -13,18 +13,6 @@ func TestLoadTelegram(t *testing.T) {
 	}
 }
 
-func TestValidateWebsiteDevelopmentDatabase(t *testing.T) {
-	good := "postgresql://user:password@127.0.0.1:5432/jobhub_website_poc_test?sslmode=disable"
-	if err := ValidateWebsiteDevelopmentDatabase("development", good); err != nil {
-		t.Fatal(err)
-	}
-	for _, raw := range []string{"postgresql://127.0.0.1:5432/jobhub_telegram_poc_test", "postgresql://db/jobhub_website_poc_test", good + "&search_path=public"} {
-		if ValidateWebsiteDevelopmentDatabase("development", raw) == nil {
-			t.Fatalf("accepted %q", raw)
-		}
-	}
-}
-
 func TestLoadTelegramRequiresTokenAndNumericChannels(t *testing.T) {
 	t.Setenv("TELEGRAM_BOT_TOKEN", "")
 	if _, err := LoadTelegram(); err == nil {
