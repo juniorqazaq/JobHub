@@ -23,6 +23,7 @@ type Profile struct {
 	PhotoURL                 string           `json:"photo_url,omitempty"`
 	City                     string           `json:"city,omitempty"`
 	BirthYear                *int             `json:"birth_year,omitempty"`
+	BirthDate                string           `json:"birth_date,omitempty"`
 	Phone                    string           `json:"phone,omitempty"`
 	About                    string           `json:"about,omitempty"`
 	CurrentPosition          string           `json:"current_position,omitempty"`

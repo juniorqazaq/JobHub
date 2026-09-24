@@ -72,6 +72,58 @@ func TestSavedJobPreflightAllowsPut(t *testing.T) {
 	}
 }
 
+func TestValidateProfileNormalizesKazakhstanPhone(t *testing.T) {
+	profile, fields := validateProfile(profileRequest{
+		FullName:     "Candidate",
+		SearchStatus: "actively_looking",
+		Phone:        "8 (700) 123-45-67",
+	})
+	if len(fields) != 0 {
+		t.Fatalf("unexpected validation fields: %#v", fields)
+	}
+	if profile.Phone != "+77001234567" {
+		t.Fatalf("expected canonical phone, got %q", profile.Phone)
+	}
+}
+
+func TestValidateProfilePreservesInternationalPhone(t *testing.T) {
+	profile, fields := validateProfile(profileRequest{
+		FullName:     "Candidate",
+		SearchStatus: "actively_looking",
+		Phone:        "+44 20 7946 0958",
+	})
+	if len(fields) != 0 || profile.Phone != "+442079460958" {
+		t.Fatalf("expected canonical international phone, got %q fields=%#v", profile.Phone, fields)
+	}
+}
+
+func TestValidateProfileRejectsInvalidPhoneBirthDateAndURL(t *testing.T) {
+	_, fields := validateProfile(profileRequest{
+		FullName:     "Candidate",
+		SearchStatus: "actively_looking",
+		Phone:        "+7 123",
+		BirthDate:    "2023-02-29",
+		Website:      "https://user:password@example.com/private",
+	})
+	for _, field := range []string{"phone", "birth_date", "website"} {
+		if _, ok := fields[field]; !ok {
+			t.Fatalf("expected %s validation error, got %#v", field, fields)
+		}
+	}
+}
+
+func TestValidateProfileAcceptsLeapDay(t *testing.T) {
+	profile, fields := validateProfile(profileRequest{
+		FullName:     "Candidate",
+		SearchStatus: "actively_looking",
+		BirthDate:    "2000-02-29",
+		GitHub:       "https://github.com/candidate",
+	})
+	if len(fields) != 0 || profile.BirthDate != "2000-02-29" {
+		t.Fatalf("expected valid leap day, got %#v fields=%#v", profile, fields)
+	}
+}
+
 func candidateRouter(role string, storeErr error) (http.Handler, *candidateStoreStub) {
 	store := &candidateStoreStub{err: storeErr}
 	service := candidates.NewService(store, candidateFilesStub{})

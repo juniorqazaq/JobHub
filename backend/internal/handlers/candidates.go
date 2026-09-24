@@ -20,6 +20,7 @@ type profileRequest struct {
 	PhotoURL                 string                      `json:"photo_url"`
 	City                     string                      `json:"city"`
 	BirthYear                *int                        `json:"birth_year"`
+	BirthDate                string                      `json:"birth_date"`
 	Phone                    string                      `json:"phone"`
 	About                    string                      `json:"about"`
 	CurrentPosition          string                      `json:"current_position"`
@@ -303,6 +304,19 @@ func validateProfile(r profileRequest) (candidates.Profile, map[string]string) {
 	if r.BirthYear != nil && (*r.BirthYear < 1900 || *r.BirthYear > nowYear) {
 		fields["birth_year"] = "invalid year"
 	}
+	r.BirthDate = strings.TrimSpace(r.BirthDate)
+	if r.BirthDate != "" {
+		birthDate, err := time.Parse("2006-01-02", r.BirthDate)
+		if err != nil || birthDate.After(time.Now()) || birthDate.Year() < 1900 {
+			fields["birth_date"] = "must be a valid date that is not in the future"
+		}
+	}
+	phone, phoneErr := normalizeProfilePhone(r.Phone)
+	if phoneErr != nil {
+		fields["phone"] = "must be a valid international or Kazakhstan phone number"
+	} else {
+		r.Phone = phone
+	}
 	if r.YearsExperience != nil && (*r.YearsExperience < 0 || *r.YearsExperience > 80) {
 		fields["years_experience"] = "must be between 0 and 80"
 	}
@@ -355,12 +369,42 @@ func validateProfile(r profileRequest) (candidates.Profile, map[string]string) {
 			fields["education"] = "contains invalid entries"
 		}
 	}
-	p := candidates.Profile{FullName: r.FullName, PhotoURL: strings.TrimSpace(r.PhotoURL), City: strings.TrimSpace(r.City), BirthYear: r.BirthYear, Phone: strings.TrimSpace(r.Phone), About: strings.TrimSpace(r.About), CurrentPosition: strings.TrimSpace(r.CurrentPosition), DesiredPosition: strings.TrimSpace(r.DesiredPosition), YearsExperience: r.YearsExperience, ExperienceLevel: r.ExperienceLevel, Skills: cleanList(r.Skills), Certifications: cleanList(r.Certifications), Languages: r.Languages, DesiredSalary: r.DesiredSalary, Currency: strings.ToUpper(strings.TrimSpace(r.Currency)), SalaryPeriod: r.SalaryPeriod, PreferredLocations: cleanList(r.PreferredLocations), PreferredEmploymentTypes: cleanList(r.PreferredEmploymentTypes), PreferredWorkModes: cleanList(r.PreferredWorkModes), PreferredCategories: cleanList(r.PreferredCategories), PreferredRoles: cleanList(r.PreferredRoles), SearchStatus: r.SearchStatus, GitHub: strings.TrimSpace(r.GitHub), LinkedIn: strings.TrimSpace(r.LinkedIn), Portfolio: strings.TrimSpace(r.Portfolio), Website: strings.TrimSpace(r.Website), AllowEmployerContact: r.AllowEmployerContact, ShowProfileToEmployers: r.ShowProfileToEmployers, ShowSalaryExpectations: r.ShowSalaryExpectations, WorkExperience: r.WorkExperience, Education: r.Education}
+	p := candidates.Profile{FullName: r.FullName, PhotoURL: strings.TrimSpace(r.PhotoURL), City: strings.TrimSpace(r.City), BirthYear: r.BirthYear, BirthDate: r.BirthDate, Phone: r.Phone, About: strings.TrimSpace(r.About), CurrentPosition: strings.TrimSpace(r.CurrentPosition), DesiredPosition: strings.TrimSpace(r.DesiredPosition), YearsExperience: r.YearsExperience, ExperienceLevel: r.ExperienceLevel, Skills: cleanList(r.Skills), Certifications: cleanList(r.Certifications), Languages: r.Languages, DesiredSalary: r.DesiredSalary, Currency: strings.ToUpper(strings.TrimSpace(r.Currency)), SalaryPeriod: r.SalaryPeriod, PreferredLocations: cleanList(r.PreferredLocations), PreferredEmploymentTypes: cleanList(r.PreferredEmploymentTypes), PreferredWorkModes: cleanList(r.PreferredWorkModes), PreferredCategories: cleanList(r.PreferredCategories), PreferredRoles: cleanList(r.PreferredRoles), SearchStatus: r.SearchStatus, GitHub: strings.TrimSpace(r.GitHub), LinkedIn: strings.TrimSpace(r.LinkedIn), Portfolio: strings.TrimSpace(r.Portfolio), Website: strings.TrimSpace(r.Website), AllowEmployerContact: r.AllowEmployerContact, ShowProfileToEmployers: r.ShowProfileToEmployers, ShowSalaryExpectations: r.ShowSalaryExpectations, WorkExperience: r.WorkExperience, Education: r.Education}
 	return p, fields
 }
 func httpURL(value string) bool {
 	u, err := url.Parse(value)
 	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") && u.User == nil
+}
+
+func normalizeProfilePhone(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && !strings.ContainsRune("+ ()-", char) {
+			return "", errors.New("phone contains unsupported characters")
+		}
+	}
+	digits := strings.NewReplacer(" ", "", "(", "", ")", "", "-", "").Replace(value)
+	if strings.HasPrefix(digits, "8") && len(digits) == 11 && (digits[1] == '6' || digits[1] == '7') {
+		digits = "+7" + digits[1:]
+	} else if !strings.HasPrefix(digits, "+") && len(digits) == 10 && (digits[0] == '6' || digits[0] == '7') {
+		digits = "+7" + digits
+	}
+	if !strings.HasPrefix(digits, "+") || len(digits) < 9 || len(digits) > 16 || digits[1] == '0' {
+		return "", errors.New("phone is not E.164 compatible")
+	}
+	for _, char := range digits[1:] {
+		if char < '0' || char > '9' {
+			return "", errors.New("phone is not E.164 compatible")
+		}
+	}
+	if strings.HasPrefix(digits, "+7") && (len(digits) != 12 || (digits[2] != '6' && digits[2] != '7')) {
+		return "", errors.New("invalid Kazakhstan phone")
+	}
+	return digits, nil
 }
 
 func writeCandidateError(c *gin.Context, logger *slog.Logger, err error) {
