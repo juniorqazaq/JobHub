@@ -71,12 +71,14 @@ export function SiteShell({ children }: PropsWithChildren) {
                   </span>
                   <strong>{auth.session.user.fullName}</strong>
                 </Link>
-                <IconButton
-                  label={t("auth.logout")}
-                  icon={<LogOut size={18} />}
-                  variant="quiet"
-                  onClick={() => void auth.logout().then(() => navigate("/"))}
-                />
+                {auth.session.user.role !== "job_seeker" ? (
+                  <IconButton
+                    label={t("auth.logout")}
+                    icon={<LogOut size={18} />}
+                    variant="quiet"
+                    onClick={() => void auth.logout().then(() => navigate("/"))}
+                  />
+                ) : null}
               </>
             ) : (
               <>

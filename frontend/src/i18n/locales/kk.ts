@@ -115,6 +115,7 @@ export const kk = {
       loginSubmit: "Кіру",
       registerSubmit: "Аккаунт ашу",
       logout: "Шығу",
+      logoutError: "Жүйеден шығу мүмкін болмады. Қайталап көріңіз.",
       noAccount: "Аккаунтыңыз жоқ па?",
       hasAccount: "Аккаунтыңыз бар ма?",
       registerLink: "Тіркелу",

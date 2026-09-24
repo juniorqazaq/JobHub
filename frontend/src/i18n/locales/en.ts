@@ -115,6 +115,7 @@ export const en = {
       loginSubmit: "Log in",
       registerSubmit: "Create account",
       logout: "Log out",
+      logoutError: "Could not log out. Try again.",
       noAccount: "No account yet?",
       hasAccount: "Already have an account?",
       registerLink: "Register",

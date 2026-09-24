@@ -117,6 +117,7 @@ export const ru = {
       loginSubmit: "Войти",
       registerSubmit: "Создать аккаунт",
       logout: "Выйти",
+      logoutError: "Не удалось выйти. Попробуйте ещё раз.",
       noAccount: "Ещё нет аккаунта?",
       hasAccount: "Уже есть аккаунт?",
       registerLink: "Зарегистрироваться",

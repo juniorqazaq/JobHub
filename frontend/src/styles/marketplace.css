@@ -231,6 +231,13 @@
 .profile-list dd { margin: 0; color: var(--color-text-primary); font-weight: 750; overflow-wrap: anywhere; }
 .account-page { padding-block: clamp(2rem, 5vw, 4.5rem); }
 .account-overview { width: min(100%, 58rem); }
+.account-page--candidate { width: min(100%, 46rem); }
+.account-page__header { margin-bottom: var(--space-6); padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border-strong); }
+.account-page__header h1 { margin: 0; font-size: clamp(var(--text-28), 4vw, var(--text-40)); }
+.account-summary h2 { margin-bottom: var(--space-4); font-size: var(--text-20); }
+.account-summary .profile-list { width: 100%; margin: 0; }
+.account-actions { display: grid; justify-items: start; gap: var(--space-3); margin-top: var(--space-6); }
+.account-logout-error { max-width: 32rem; }
 .account-header { display: flex; align-items: center; gap: var(--space-5); padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border); }
 .account-avatar { display: grid; flex: 0 0 auto; width: 4.75rem; height: 4.75rem; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface); color: var(--color-text-secondary); font-family: var(--font-display); font-size: var(--text-24); font-weight: 800; }
 .account-header .auth-eyebrow { margin-bottom: var(--space-1); }
