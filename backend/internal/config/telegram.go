@@ -13,6 +13,7 @@ import (
 type TelegramConfig struct {
 	Token       string
 	Allowed     map[int64]struct{}
+	Admins      map[int64]struct{}
 	OffsetFile  string
 	DatabaseURL string
 }
@@ -20,7 +21,7 @@ type TelegramConfig struct {
 func LoadTelegram() (TelegramConfig, error) {
 	c := TelegramConfig{
 		Token: strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")), OffsetFile: value("TELEGRAM_OFFSET_FILE", "./storage/telegram-collector.offset"),
-		DatabaseURL: strings.TrimSpace(os.Getenv("TELEGRAM_DEV_DATABASE_URL")), Allowed: map[int64]struct{}{},
+		DatabaseURL: strings.TrimSpace(os.Getenv("TELEGRAM_DEV_DATABASE_URL")), Allowed: map[int64]struct{}{}, Admins: map[int64]struct{}{},
 	}
 	if c.Token == "" {
 		return TelegramConfig{}, errors.New("TELEGRAM_BOT_TOKEN is required")
@@ -29,10 +30,10 @@ func LoadTelegram() (TelegramConfig, error) {
 		return TelegramConfig{}, errors.New("TELEGRAM_OFFSET_FILE must name a file")
 	}
 	raw := strings.TrimSpace(os.Getenv("TELEGRAM_ALLOWED_CHANNEL_IDS"))
-	if raw == "" {
-		return c, nil
+	parts := []string{}
+	if raw != "" {
+		parts = strings.Split(raw, ",")
 	}
-	parts := strings.Split(raw, ",")
 	if len(parts) > 20 {
 		return TelegramConfig{}, errors.New("TELEGRAM_ALLOWED_CHANNEL_IDS exceeds 20 channels")
 	}
@@ -46,6 +47,24 @@ func LoadTelegram() (TelegramConfig, error) {
 		}
 		c.Allowed[id] = struct{}{}
 	}
+	adminRaw := strings.TrimSpace(os.Getenv("TELEGRAM_ALLOWED_ADMIN_IDS"))
+	if adminRaw == "" {
+		return c, nil
+	}
+	adminParts := strings.Split(adminRaw, ",")
+	if len(adminParts) > 20 {
+		return TelegramConfig{}, errors.New("TELEGRAM_ALLOWED_ADMIN_IDS exceeds 20 users")
+	}
+	for _, part := range adminParts {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id <= 0 {
+			return TelegramConfig{}, errors.New("TELEGRAM_ALLOWED_ADMIN_IDS must contain positive numeric user IDs")
+		}
+		if _, duplicate := c.Admins[id]; duplicate {
+			return TelegramConfig{}, errors.New("TELEGRAM_ALLOWED_ADMIN_IDS contains a duplicate")
+		}
+		c.Admins[id] = struct{}{}
+	}
 	return c, nil
 }
 
@@ -53,6 +72,23 @@ func ValidateTelegramDevelopmentDatabase(environment, raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || environment != "development" || (u.Scheme != "postgres" && u.Scheme != "postgresql") || (u.Hostname() != "127.0.0.1" && u.Hostname() != "::1") || u.Port() == "" || u.Fragment != "" || !regexp.MustCompile(`^/jobhub_telegram_poc_[A-Za-z0-9_]+$`).MatchString(u.Path) {
 		return errors.New("Telegram ingestion requires APP_ENV=development and an explicit loopback jobhub_telegram_poc_* database")
+	}
+	q, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return errors.New("invalid development database options")
+	}
+	for key := range q {
+		if key != "sslmode" {
+			return errors.New("database connection overrides are not allowed")
+		}
+	}
+	return nil
+}
+
+func ValidateWebsiteDevelopmentDatabase(environment, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || environment != "development" || (u.Scheme != "postgres" && u.Scheme != "postgresql") || (u.Hostname() != "127.0.0.1" && u.Hostname() != "::1") || u.Port() == "" || u.Fragment != "" || !regexp.MustCompile(`^/jobhub_website_poc_[A-Za-z0-9_]+$`).MatchString(u.Path) {
+		return errors.New("website import requires APP_ENV=development and an explicit loopback jobhub_website_poc_* database")
 	}
 	q, err := url.ParseQuery(u.RawQuery)
 	if err != nil {

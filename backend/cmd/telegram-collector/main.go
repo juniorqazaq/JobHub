@@ -15,6 +15,7 @@ import (
 	"jobhub-ai/backend/internal/jobs"
 	telegramprovider "jobhub-ai/backend/internal/providers/telegram"
 	"jobhub-ai/backend/internal/telegramcollector"
+	"jobhub-ai/backend/internal/webscanner"
 )
 
 const expectedBotUsername = "jhubkz_bot"
@@ -59,11 +60,15 @@ func run(ctx context.Context, logger *slog.Logger, args []string) error {
 		logger.Info("telegram channel resolved", "chat_id", chat.ID, "channel_username", chat.Username)
 		return nil
 	}
-	if len(cfg.Allowed) == 0 {
+	if len(cfg.Allowed) == 0 && len(cfg.Admins) == 0 {
 		logger.Info("telegram collector smoke check complete", "reason", "no_allowed_channels")
 		return nil
 	}
-	if err := config.ValidateTelegramDevelopmentDatabase(os.Getenv("APP_ENV"), cfg.DatabaseURL); err != nil {
+	if len(cfg.Admins) > 0 {
+		if err := config.ValidateWebsiteDevelopmentDatabase(os.Getenv("APP_ENV"), cfg.DatabaseURL); err != nil {
+			return err
+		}
+	} else if err := config.ValidateTelegramDevelopmentDatabase(os.Getenv("APP_ENV"), cfg.DatabaseURL); err != nil {
 		return err
 	}
 	pool, err := database.Connect(ctx, cfg.DatabaseURL, envValue("PGX_QUERY_EXEC_MODE", "cache_statement"))
@@ -73,6 +78,7 @@ func run(ctx context.Context, logger *slog.Logger, args []string) error {
 	defer pool.Close()
 	store := jobs.NewPostgresStore(pool)
 	processor := telegramcollector.NewProcessor(cfg.Allowed, store, store, logger)
+	commands := telegramcollector.NewCommandProcessor(cfg.Admins, webscanner.New(&http.Client{}), client, store, store, logger)
 	offset, err := telegramprovider.LoadOffset(cfg.OffsetFile)
 	if err != nil {
 		return err
@@ -90,7 +96,7 @@ func run(ctx context.Context, logger *slog.Logger, args []string) error {
 		}
 		logger.Info("telegram update baseline initialized", "pending_updates_skipped", len(pending))
 	}
-	logger.Info("telegram collector started", "bot_username", bot.Username, "allowed_channel_count", len(cfg.Allowed))
+	logger.Info("telegram collector started", "bot_username", bot.Username, "allowed_channel_count", len(cfg.Allowed), "allowed_admin_count", len(cfg.Admins))
 	backoff := time.Second
 	for {
 		updates, err := client.GetUpdates(ctx, offset)
@@ -114,6 +120,19 @@ func run(ctx context.Context, logger *slog.Logger, args []string) error {
 		}
 		backoff = time.Second
 		for _, update := range updates {
+			if message, ok := update.DirectMessage(); ok {
+				handled, commandErr := commands.Process(ctx, message.ChatID, message.UserID, message.Text, message.LanguageCode)
+				if commandErr != nil {
+					return errors.New("Telegram command processing failed: " + safeCategory(commandErr))
+				}
+				if handled {
+					offset = update.ID + 1
+					if err := telegramprovider.SaveOffset(cfg.OffsetFile, offset); err != nil {
+						return err
+					}
+					continue
+				}
+			}
 			outcome, err := processor.Process(ctx, update)
 			if err != nil {
 				return errors.New("Telegram update processing failed")

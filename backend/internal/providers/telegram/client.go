@@ -33,6 +33,7 @@ type Chat struct {
 
 type Update struct {
 	ID                int64
+	Message           *message
 	ChannelPost       *message
 	EditedChannelPost *message
 }
@@ -49,18 +50,23 @@ type message struct {
 		Title    string `json:"title"`
 		Username string `json:"username"`
 	} `json:"chat"`
+	From struct {
+		ID           int64  `json:"id"`
+		LanguageCode string `json:"language_code"`
+	} `json:"from"`
 }
 
 func (u *Update) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		ID                int64    `json:"update_id"`
+		Message           *message `json:"message"`
 		ChannelPost       *message `json:"channel_post"`
 		EditedChannelPost *message `json:"edited_channel_post"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	u.ID, u.ChannelPost, u.EditedChannelPost = raw.ID, raw.ChannelPost, raw.EditedChannelPost
+	u.ID, u.Message, u.ChannelPost, u.EditedChannelPost = raw.ID, raw.Message, raw.ChannelPost, raw.EditedChannelPost
 	return nil
 }
 
@@ -147,12 +153,44 @@ func (c *Client) getUpdates(ctx context.Context, offset int64, timeout int) ([]U
 		Offset         int64    `json:"offset"`
 		Timeout        int      `json:"timeout"`
 		AllowedUpdates []string `json:"allowed_updates"`
-	}{offset, timeout, []string{"channel_post", "edited_channel_post"}}
+	}{offset, timeout, []string{"message", "channel_post", "edited_channel_post"}}
 	var updates []Update
 	if err := c.call(ctx, "getUpdates", payload, &updates); err != nil {
 		return nil, err
 	}
 	return updates, nil
+}
+
+type DirectMessage struct {
+	ChatID, UserID     int64
+	Text, LanguageCode string
+}
+
+func (u Update) DirectMessage() (DirectMessage, bool) {
+	if u.Message == nil || u.Message.Chat.Type != "private" || u.Message.Chat.ID == 0 || u.Message.From.ID == 0 {
+		return DirectMessage{}, false
+	}
+	return DirectMessage{ChatID: u.Message.Chat.ID, UserID: u.Message.From.ID, Text: strings.TrimSpace(u.Message.Text), LanguageCode: u.Message.From.LanguageCode}, true
+}
+
+func (c *Client) SendMessage(ctx context.Context, chatID int64, text string) error {
+	if chatID == 0 || strings.TrimSpace(text) == "" || len([]rune(text)) > 4096 {
+		return &APIError{Category: "TELEGRAM_INVALID_MESSAGE"}
+	}
+	var sent struct {
+		MessageID int64 `json:"message_id"`
+	}
+	if err := c.call(ctx, "sendMessage", struct {
+		ChatID         int64  `json:"chat_id"`
+		Text           string `json:"text"`
+		DisablePreview bool   `json:"disable_web_page_preview"`
+	}{chatID, text, true}, &sent); err != nil {
+		return err
+	}
+	if sent.MessageID == 0 {
+		return &APIError{Category: "TELEGRAM_INVALID_RESPONSE"}
+	}
+	return nil
 }
 
 func (c *Client) call(ctx context.Context, method string, payload any, target any) error {
