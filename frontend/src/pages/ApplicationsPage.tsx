@@ -12,7 +12,7 @@ import {
   JobListSkeleton,
 } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
-import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
+import { CandidateJobsLayout } from "../components/candidate/CandidateJobsLayout";
 import type { ApplicationStatus } from "../api/models/candidate";
 
 export function ApplicationsPage() {
@@ -43,13 +43,7 @@ export function ApplicationsPage() {
       ? apps.data
       : apps.data?.filter((application) => application.status === status);
   return (
-    <CandidateWorkspaceLayout>
-      <section className="candidate-list-page">
-        <header>
-          <p className="auth-eyebrow">{t("applications.eyebrow")}</p>
-          <h1>{t("applications.title")}</h1>
-          <p>{t("applications.description")}</p>
-        </header>
+    <CandidateJobsLayout tabTitle={t("applications.title")} tabDescription={t("applications.description")}>
         {apps.data?.length ? (
           <label className="application-filter">
             <span>{t("applications.filterLabel")}</span>
@@ -163,8 +157,7 @@ export function ApplicationsPage() {
             {t("applications.filterEmpty")}
           </p>
         ) : null}
-      </section>
-    </CandidateWorkspaceLayout>
+    </CandidateJobsLayout>
   );
 }
 function formatDate(value: string, language: string) {

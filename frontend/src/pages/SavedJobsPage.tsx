@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { repositories } from "../api/repositories";
 import { useAuth } from "../app/authContext";
-import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
+import { CandidateJobsLayout } from "../components/candidate/CandidateJobsLayout";
 import { Button } from "../components/ui/Button";
 import {
   EmptyState,
@@ -32,13 +32,7 @@ export function SavedJobsPage() {
     onError: () => toast.showToast({ tone: "error", title: t("saved.error") }),
   });
   return (
-    <CandidateWorkspaceLayout>
-      <section className="candidate-list-page">
-        <header>
-          <p className="auth-eyebrow">{t("saved.eyebrow")}</p>
-          <h1>{t("saved.title")}</h1>
-          <p>{t("saved.description")}</p>
-        </header>
+    <CandidateJobsLayout tabTitle={t("saved.title")} tabDescription={t("saved.description")}>
         {saved.isPending ? (
           <JobListSkeleton label={t("saved.loading")} />
         ) : null}
@@ -116,7 +110,6 @@ export function SavedJobsPage() {
             )}
           </div>
         ) : null}
-      </section>
-    </CandidateWorkspaceLayout>
+    </CandidateJobsLayout>
   );
 }

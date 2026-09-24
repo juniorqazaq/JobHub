@@ -62,7 +62,7 @@ export function SiteShell({ children }: PropsWithChildren) {
                   className="candidate-menu-link"
                   to={
                     auth.session.user.role === "job_seeker"
-                      ? "/workspace"
+                      ? "/profile"
                       : "/account"
                   }
                 >

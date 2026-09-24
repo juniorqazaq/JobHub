@@ -25,6 +25,7 @@ import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 import { CandidateIdentityHeader } from "../components/candidate/CandidateIdentityHeader";
+import { CandidateAccountSection } from "../components/candidate/CandidateAccountSection";
 import {
   formatProfilePhone,
   isValidBirthDate,
@@ -599,6 +600,7 @@ export function ProfilePage() {
           </div>
         </form>
         )}
+        <CandidateAccountSection />
       </section>
     </CandidateWorkspaceLayout>
   );

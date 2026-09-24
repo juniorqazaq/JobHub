@@ -1,24 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, Trash2, Upload } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 import { repositories } from "../api/repositories";
 import { useAuth } from "../app/authContext";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 import { Button } from "../components/ui/Button";
 import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
+import { JobPreferencesSection } from "./JobPreferencesPage";
 
 export function ResumePage() {
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
+  const location = useLocation();
   const fileRef = useRef<HTMLInputElement>(null);
   const profile = useQuery({
     queryKey: ["candidate-profile"],
     queryFn: () => repositories.candidate.getProfile(),
   });
+  useEffect(() => {
+    if (profile.data && location.hash === "#preferences") {
+      requestAnimationFrame(() => document.getElementById("preferences")?.scrollIntoView());
+    }
+  }, [location.hash, profile.data]);
   const upload = useMutation({
     mutationFn: (file: File) =>
       repositories.candidate.uploadResume(file, session!.csrfToken),
@@ -87,7 +95,9 @@ export function ResumePage() {
           />
         ) : null}
         {profile.data ? (
-          <section className="profile-section">
+          <>
+          <section id="resume" className="profile-section" aria-labelledby="resume-section-title">
+            <header><h2 id="resume-section-title">{t("profile.sections.resume")}</h2></header>
             <div className="profile-section__body">
               <input
                 ref={fileRef}
@@ -164,6 +174,8 @@ export function ResumePage() {
               )}
             </div>
           </section>
+          <JobPreferencesSection profile={profile.data} />
+          </>
         ) : null}
       </section>
     </CandidateWorkspaceLayout>

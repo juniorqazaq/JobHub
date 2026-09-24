@@ -4,22 +4,22 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { SiteShell } from "../../layouts/SiteShell";
 
 const destinations = [
-  ["/workspace", "overview"],
   ["/profile", "profile"],
-  ["/applications", "applications"],
-  ["/saved", "saved"],
+  ["/saved", "myJobs"],
   ["/resume", "resume"],
-  ["/preferences", "preferences"],
-  ["/account", "account"],
 ] as const;
+
+function primaryPath(pathname: string) {
+  if (pathname === "/saved" || pathname === "/applications") return "/saved";
+  if (pathname === "/resume" || pathname === "/preferences") return "/resume";
+  return "/profile";
+}
 
 export function CandidateWorkspaceLayout({ children }: PropsWithChildren) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const activePath =
-    destinations.find(([path]) => location.pathname === path)?.[0] ??
-    "/workspace";
+  const activePath = primaryPath(location.pathname);
 
   return (
     <SiteShell>
@@ -32,7 +32,7 @@ export function CandidateWorkspaceLayout({ children }: PropsWithChildren) {
                 key={path}
                 to={path}
                 end
-                aria-current={location.pathname === path ? "page" : undefined}
+                aria-current={activePath === path ? "page" : undefined}
               >
                 {t(`workspace.nav.${key}`)}
               </NavLink>
