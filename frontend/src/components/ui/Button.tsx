@@ -9,7 +9,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
 }
 
-export function Button({
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = "primary",
   size = "md",
   leadingIcon,
@@ -18,9 +18,10 @@ export function Button({
   children,
   disabled,
   ...props
-}: ButtonProps) {
+}, ref) {
   return (
     <button
+      ref={ref}
       className={`ui-button ui-button--${variant} ui-button--${size} ${className}`}
       disabled={disabled || isLoading}
       {...props}
@@ -29,7 +30,7 @@ export function Button({
       <span>{children}</span>
     </button>
   );
-}
+});
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;

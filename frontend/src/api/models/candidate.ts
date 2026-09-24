@@ -72,6 +72,7 @@ export interface CandidateProfile {
   photoUrl?: string;
   city?: string;
   birthYear?: number;
+  birthDate?: string;
   phone?: string;
   about?: string;
   currentPosition?: string;

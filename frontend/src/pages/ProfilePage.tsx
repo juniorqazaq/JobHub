@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Trash2 } from "lucide-react";
-import { useEffect } from "react";
+import { ExternalLink, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -25,14 +25,21 @@ import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 import { CandidateIdentityHeader } from "../components/candidate/CandidateIdentityHeader";
+import {
+  formatProfilePhone,
+  isValidBirthDate,
+  normalizeProfilePhone,
+  safeProfileUrl,
+} from "../lib/profileContact";
 
-const optionalUrl = z.union([z.literal(""), z.url()]);
+const optionalUrl = z.string().refine((value) => !value || safeProfileUrl(value));
 const schema = z.object({
   fullName: z.string().trim().min(1),
   photoUrl: optionalUrl,
   city: z.string(),
   birthYear: z.string(),
-  phone: z.string(),
+  birthDate: z.string().refine(isValidBirthDate),
+  phone: z.string().refine((value) => !value || normalizeProfilePhone(value)),
   about: z.string(),
   currentPosition: z.string(),
   desiredPosition: z.string(),
@@ -118,6 +125,8 @@ export function ProfilePage() {
   const { session } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
   const profile = useQuery({
     queryKey: ["candidate-profile"],
     queryFn: () => repositories.candidate.getProfile(),
@@ -137,23 +146,46 @@ export function ProfilePage() {
     name: "workExperience",
   });
   useEffect(() => {
-    if (profile.data) form.reset(toForm(profile.data));
-  }, [profile.data, form]);
+    if (profile.data && !isEditing) form.reset(toForm(profile.data));
+  }, [profile.data, form, isEditing]);
+  useEffect(() => {
+    if (!isEditing || !form.formState.isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [form.formState.isDirty, isEditing]);
   const save = useMutation({
     mutationFn: (input: CandidateProfileInput) =>
       repositories.candidate.updateProfile(input, session!.csrfToken),
     onSuccess: (data) => {
       client.setQueryData(["candidate-profile"], data);
       form.reset(toForm(data));
+      setIsEditing(false);
       toast.showToast({ title: t("profile.saved") });
+      requestAnimationFrame(() => editButtonRef.current?.focus());
     },
     onError: () =>
       toast.showToast({ tone: "error", title: t("profile.saveError") }),
   });
   const submit = form.handleSubmit(
-    (values) => save.mutate(toInput(values)),
+    (values) => {
+      if (!save.isPending) save.mutate(toInput(values));
+    },
     () => toast.showToast({ tone: "error", title: t("profile.fixErrors") }),
   );
+  const startEditing = () => {
+    form.reset(toForm(profile.data!));
+    setIsEditing(true);
+    requestAnimationFrame(() => form.setFocus("fullName"));
+  };
+  const cancelEditing = () => {
+    if (form.formState.isDirty && !window.confirm(t("profile.discardConfirm"))) {
+      return;
+    }
+    form.reset(toForm(profile.data!));
+    setIsEditing(false);
+    requestAnimationFrame(() => editButtonRef.current?.focus());
+  };
   if (profile.isPending)
     return (
       <CandidateWorkspaceLayout>
@@ -182,6 +214,22 @@ export function ProfilePage() {
           eyebrow={t("profile.eyebrow")}
           profile={profile.data!}
         />
+        {!isEditing ? (
+          <div className="profile-view-actions">
+            <Button
+              ref={editButtonRef}
+              type="button"
+              variant="secondary"
+              leadingIcon={<Pencil size={17} />}
+              onClick={startEditing}
+            >
+              {t("profile.edit")}
+            </Button>
+          </div>
+        ) : null}
+        {!isEditing ? (
+          <ProfileView profile={profile.data!} />
+        ) : (
         <form className="profile-form" onSubmit={submit} noValidate>
           <ProfileSection title={t("profile.sections.about")}>
             <div className="profile-grid">
@@ -199,13 +247,32 @@ export function ProfilePage() {
                 {...form.register("city")}
               />
               <Input
-                label={t("profile.fields.birthYear")}
-                inputMode="numeric"
-                {...form.register("birthYear")}
+                label={t("profile.fields.birthDate")}
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                hint={
+                  profile.data?.birthYear && !profile.data.birthDate
+                    ? t("profile.hints.legacyBirthYear", {
+                        year: profile.data.birthYear,
+                      })
+                    : t("profile.hints.birthDatePrivate")
+                }
+                error={
+                  form.formState.errors.birthDate
+                    ? t("profile.validation.birthDate")
+                    : undefined
+                }
+                {...form.register("birthDate")}
               />
               <Input
                 label={t("profile.fields.phone")}
                 type="tel"
+                placeholder="+7 700 000 00 00"
+                error={
+                  form.formState.errors.phone
+                    ? t("profile.validation.phone")
+                    : undefined
+                }
                 {...form.register("phone")}
               />
               <Input
@@ -468,21 +535,25 @@ export function ProfilePage() {
               <Input
                 label={t("profile.fields.github")}
                 type="url"
+                error={form.formState.errors.github ? t("profile.validation.url") : undefined}
                 {...form.register("github")}
               />
               <Input
                 label={t("profile.fields.linkedin")}
                 type="url"
+                error={form.formState.errors.linkedin ? t("profile.validation.url") : undefined}
                 {...form.register("linkedin")}
               />
               <Input
                 label={t("profile.fields.portfolio")}
                 type="url"
+                error={form.formState.errors.portfolio ? t("profile.validation.url") : undefined}
                 {...form.register("portfolio")}
               />
               <Input
                 label={t("profile.fields.website")}
                 type="url"
+                error={form.formState.errors.website ? t("profile.validation.url") : undefined}
                 {...form.register("website")}
               />
             </div>
@@ -507,15 +578,27 @@ export function ProfilePage() {
                 ? t("profile.unsaved")
                 : t("profile.upToDate")}
             </span>
-            <Button
-              type="submit"
-              leadingIcon={<Save size={17} />}
-              isLoading={save.isPending}
-            >
-              {t("profile.save")}
-            </Button>
+            <div className="profile-save-bar__actions">
+              <Button
+                type="button"
+                variant="quiet"
+                leadingIcon={<X size={17} />}
+                disabled={save.isPending}
+                onClick={cancelEditing}
+              >
+                {t("profile.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                leadingIcon={<Save size={17} />}
+                isLoading={save.isPending}
+              >
+                {t("profile.save")}
+              </Button>
+            </div>
           </div>
         </form>
+        )}
       </section>
     </CandidateWorkspaceLayout>
   );
@@ -540,12 +623,145 @@ function ProfileSection({
     </section>
   );
 }
+
+function ProfileView({ profile }: { profile: CandidateProfile }) {
+  const { t, i18n } = useTranslation();
+  const empty = t("common.notProvided");
+  const dateLocale = i18n.resolvedLanguage === "kk" ? "kk-KZ" : i18n.resolvedLanguage === "ru" ? "ru-RU" : "en-US";
+  const birthDate = profile.birthDate
+    ? new Intl.DateTimeFormat(dateLocale, { dateStyle: "long", timeZone: "UTC" }).format(
+        new Date(`${profile.birthDate}T00:00:00Z`),
+      )
+    : profile.birthYear
+      ? t("profile.legacyBirthYearValue", { year: profile.birthYear })
+      : empty;
+
+  return (
+    <div className="profile-view">
+      <ProfileSection title={t("profile.sections.about")}>
+        <dl className="profile-view-grid">
+          <ProfileFact label={t("profile.fields.fullName")} value={profile.fullName} />
+          <ProfileFact label={t("profile.fields.city")} value={profile.city || empty} />
+          <ProfileFact label={t("profile.fields.birthDate")} value={birthDate} />
+          <ProfileFact
+            label={t("profile.fields.phone")}
+            value={
+              profile.phone ? (
+                <a href={`tel:${profile.phone}`}>{formatProfilePhone(profile.phone)}</a>
+              ) : empty
+            }
+          />
+          <ProfileFact label={t("profile.fields.currentPosition")} value={profile.currentPosition || empty} />
+          <ProfileFact label={t("profile.fields.desiredPosition")} value={profile.desiredPosition || empty} />
+          <ProfileFact label={t("profile.fields.yearsExperience")} value={profile.yearsExperience?.toString() || empty} />
+          <ProfileFact
+            label={t("profile.fields.experienceLevel")}
+            value={profile.experienceLevel ? t(`profile.experienceLevels.${profile.experienceLevel}`) : empty}
+          />
+        </dl>
+        <div className="profile-view-copy">
+          <h3>{t("profile.fields.about")}</h3>
+          <p>{profile.about || empty}</p>
+        </div>
+        <TagGroup label={t("profile.fields.skills")} values={profile.skills} empty={empty} />
+        <TagGroup label={t("profile.fields.certifications")} values={profile.certifications} empty={empty} />
+      </ProfileSection>
+
+      <ProfileSection title={t("profile.sections.experience")}>
+        {profile.workExperience.length ? profile.workExperience.map((item) => (
+          <article className="profile-timeline-item" key={item.id ?? `${item.company}-${item.startDate}`}>
+            <div>
+              <h3>{item.position}</h3>
+              <p>{item.company} · {t(`employer.employmentTypes.${item.employmentType}`)}</p>
+            </div>
+            <span>{item.startDate} — {item.isCurrent ? t("profile.present") : item.endDate}</span>
+            {item.description ? <p>{item.description}</p> : null}
+            {item.achievements ? <p>{item.achievements}</p> : null}
+            <TagGroup label={t("profile.fields.skills")} values={item.skills} empty={empty} compact />
+          </article>
+        )) : <p className="section-empty">{t("profile.noExperience")}</p>}
+      </ProfileSection>
+
+      <ProfileSection title={t("profile.sections.education")}>
+        {profile.education.length ? profile.education.map((item) => (
+          <article className="profile-timeline-item" key={item.id ?? `${item.institution}-${item.startYear}`}>
+            <div><h3>{item.degree}, {item.fieldOfStudy}</h3><p>{item.institution}</p></div>
+            <span>{item.startYear} — {item.graduationYear || t("profile.present")}</span>
+            {item.description ? <p>{item.description}</p> : null}
+          </article>
+        )) : <p className="section-empty">{t("profile.noEducation")}</p>}
+      </ProfileSection>
+
+      <ProfileSection title={t("profile.sections.languages")}>
+        {profile.languages.length ? (
+          <dl className="profile-view-grid">
+            {profile.languages.map((item) => (
+              <ProfileFact
+                key={item.id ?? item.language}
+                label={item.language}
+                value={t(`profile.proficiency.${item.proficiency}`)}
+              />
+            ))}
+          </dl>
+        ) : <p className="section-empty">{t("profile.noLanguages")}</p>}
+      </ProfileSection>
+
+      <ProfileSection title={t("profile.sections.linksPrivacy")}>
+        <div className="profile-link-list">
+          {([
+            [t("profile.fields.github"), profile.github],
+            [t("profile.fields.linkedin"), profile.linkedin],
+            [t("profile.fields.portfolio"), profile.portfolio],
+            [t("profile.fields.website"), profile.website],
+          ] as const).map(([label, value]) => (
+            <SafeProfileLink key={label} label={label} value={value} empty={empty} />
+          ))}
+        </div>
+        <dl className="profile-view-grid profile-privacy-view">
+          <ProfileFact label={t("profile.fields.allowEmployerContact")} value={t(profile.allowEmployerContact ? "common.yes" : "common.no")} />
+          <ProfileFact label={t("profile.fields.showProfileToEmployers")} value={t(profile.showProfileToEmployers ? "common.yes" : "common.no")} />
+          <ProfileFact label={t("profile.fields.showSalaryExpectations")} value={t(profile.showSalaryExpectations ? "common.yes" : "common.no")} />
+        </dl>
+      </ProfileSection>
+    </div>
+  );
+}
+
+function ProfileFact({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
+}
+
+function TagGroup({ label, values, empty, compact = false }: { label: string; values: string[]; empty: string; compact?: boolean }) {
+  return (
+    <div className={compact ? "profile-tags profile-tags--compact" : "profile-tags"}>
+      <h3>{label}</h3>
+      {values.length ? <ul>{values.map((value) => <li key={value}>{value}</li>)}</ul> : <p>{empty}</p>}
+    </div>
+  );
+}
+
+function SafeProfileLink({ label, value, empty }: { label: string; value?: string; empty: string }) {
+  const { t } = useTranslation();
+  const href = safeProfileUrl(value);
+  return (
+    <div>
+      <span>{label}</span>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label}. ${t("profile.opensNewTab")}`}>
+          <span>{value}</span><ExternalLink size={15} aria-hidden="true" />
+        </a>
+      ) : <strong>{value || empty}</strong>}
+    </div>
+  );
+}
+
 function emptyValues(): FormValues {
   return {
     fullName: "",
     photoUrl: "",
     city: "",
     birthYear: "",
+    birthDate: "",
     phone: "",
     about: "",
     currentPosition: "",
@@ -581,6 +797,7 @@ function toForm(p: CandidateProfile): FormValues {
     photoUrl: p.photoUrl ?? "",
     city: p.city ?? "",
     birthYear: p.birthYear?.toString() ?? "",
+    birthDate: p.birthDate ?? "",
     phone: p.phone ?? "",
     about: p.about ?? "",
     currentPosition: p.currentPosition ?? "",
@@ -627,7 +844,8 @@ function toInput(v: FormValues): CandidateProfileInput {
     photoUrl: v.photoUrl || undefined,
     city: v.city || undefined,
     birthYear: number(v.birthYear),
-    phone: v.phone || undefined,
+    birthDate: v.birthDate || undefined,
+    phone: normalizeProfilePhone(v.phone),
     about: v.about || undefined,
     currentPosition: v.currentPosition || undefined,
     desiredPosition: v.desiredPosition || undefined,
