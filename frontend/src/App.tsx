@@ -8,6 +8,8 @@ const LoginPage = lazy(() => import("./pages/LoginPage").then((module) => ({ def
 const RegisterPage = lazy(() => import("./pages/RegisterPage").then((module) => ({ default: module.RegisterPage })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then((module) => ({ default: module.AccountPage })));
 const EmployerPage = lazy(() => import("./pages/EmployerPage").then((module) => ({ default: module.EmployerPage })));
+const EmployerVacanciesPage = lazy(() => import("./pages/EmployerVacanciesPage").then((module) => ({ default: module.EmployerVacanciesPage })));
+const EmployerVacancyFormPage = lazy(() => import("./pages/EmployerVacancyFormPage").then((module) => ({ default: module.EmployerVacancyFormPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })));
 const ProtectedRoute = lazy(() => import("./pages/ProtectedRoute").then((module) => ({ default: module.ProtectedRoute })));
 
@@ -30,6 +32,9 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/employer" element={<ProtectedRoute role="employer"><EmployerPage /></ProtectedRoute>} />
+          <Route path="/employer/vacancies" element={<ProtectedRoute role="employer"><EmployerVacanciesPage /></ProtectedRoute>} />
+          <Route path="/employer/vacancies/new" element={<ProtectedRoute role="employer"><EmployerVacancyFormPage /></ProtectedRoute>} />
+          <Route path="/employer/vacancies/:jobId/edit" element={<ProtectedRoute role="employer"><EmployerVacancyFormPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute role="admin"><AdminPage /></ProtectedRoute>} />
           <Route path="/dev/ui" element={<ComponentShowcasePage />} />
           <Route path="/dev/components" element={<Navigate to="/dev/ui" replace />} />

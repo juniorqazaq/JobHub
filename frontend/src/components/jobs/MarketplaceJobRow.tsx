@@ -17,7 +17,7 @@ export function MarketplaceJobRow({ job }: { job: JobSummary }) {
           <div className="job-row__facts">
             <span><BriefcaseBusiness size={16} aria-hidden="true" />{job.company.name || t("common.notProvided")}</span>
             <span><MapPin size={16} aria-hidden="true" />{job.location || t("common.notProvided")}</span>
-            {job.employmentType ? <span>{job.employmentType}</span> : null}
+            {job.employmentType ? <span>{job.source.type === "native" ? t(`employer.employmentTypes.${job.employmentType}`) : job.employmentType}</span> : null}
           </div>
           {job.summary ? <p>{job.summary}</p> : null}
           <div className="job-row__footer">
@@ -26,13 +26,17 @@ export function MarketplaceJobRow({ job }: { job: JobSummary }) {
               {job.source.name}
             </span>
             <span>{t("jobs.updated", { date: posted })}</span>
-            {job.salaryRaw ? <strong>{job.salaryRaw}</strong> : null}
+            {job.salaryRaw || job.salary ? <strong>{job.salaryRaw || formatSalary(job.salary!)}</strong> : null}
           </div>
         </div>
         <ChevronRight className="job-row__arrow" size={20} aria-hidden="true" />
       </Link>
     </article>
   );
+}
+
+function formatSalary(salary: NonNullable<JobSummary["salary"]>) {
+  return `${salary.min.toLocaleString()}${salary.max ? `–${salary.max.toLocaleString()}` : ""} ${salary.currency}`;
 }
 
 function formatDate(value: string, language: string) {
