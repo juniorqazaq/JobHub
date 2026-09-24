@@ -1,15 +1,18 @@
 import { useTranslation } from "react-i18next";
+import type { AuthUser } from "../../api/models/auth";
 import type { CandidateProfile } from "../../api/models/candidate";
 
 interface CandidateIdentityHeaderProps {
   eyebrow: string;
   profile: CandidateProfile;
+  user: AuthUser;
   titleId?: string;
 }
 
 export function CandidateIdentityHeader({
   eyebrow,
   profile,
+  user,
   titleId,
 }: CandidateIdentityHeaderProps) {
   const { t } = useTranslation();
@@ -27,6 +30,24 @@ export function CandidateIdentityHeader({
         <p className="auth-eyebrow">{eyebrow}</p>
         <h1 id={titleId}>{profile.fullName}</h1>
         <p className="candidate-identity-header__position">{position}</p>
+        <dl className="candidate-account-meta">
+          <div>
+            <dt>{t("auth.email")}</dt>
+            <dd>{user.email}</dd>
+          </div>
+          <div>
+            <dt>{t("auth.role")}</dt>
+            <dd>{t(`auth.roles.${user.role}`)}</dd>
+          </div>
+          <div>
+            <dt>{t("auth.accountStatus")}</dt>
+            <dd>
+              <span className={`account-status account-status--${user.status}`}>
+                {t(`auth.statuses.${user.status}`)}
+              </span>
+            </dd>
+          </div>
+        </dl>
       </div>
       <div
         className="profile-completion"

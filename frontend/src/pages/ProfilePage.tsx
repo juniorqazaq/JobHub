@@ -214,6 +214,7 @@ export function ProfilePage() {
         <CandidateIdentityHeader
           eyebrow={t("profile.eyebrow")}
           profile={profile.data!}
+          user={session!.user}
         />
         {!isEditing ? (
           <div className="profile-view-actions">
