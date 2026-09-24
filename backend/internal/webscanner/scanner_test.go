@@ -45,19 +45,27 @@ func response(code int, body, contentType string, req *http.Request) *http.Respo
 
 func TestRedirectSafetyAndLimits(t *testing.T) {
 	t.Run("redirect to private address", func(t *testing.T) {
-		client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) { return response(302, "", "text/html", r), nil })}
-		s := newScanner(client, publicResolver, 3, 100)
-		client.CheckRedirect = func(*http.Request, []*http.Request) error { return nil }
-		// Exercise the scanner-owned redirect validator directly through a transport
-		// that returns a redirect location.
-		client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			res := response(302, "", "text/html", r)
 			res.Header.Set("Location", "http://127.0.0.1/private")
 			return res, nil
-		})
+		})}
+		s := newScanner(client, publicResolver, 3, 100)
 		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{remaining: 3})
-		if err == nil {
-			t.Fatal("unsafe redirect accepted")
+		if category(err) != "UNSAFE_URL" {
+			t.Fatalf("unsafe redirect accepted: %v", err)
+		}
+	})
+	t.Run("redirect limit", func(t *testing.T) {
+		client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			res := response(302, "", "text/html", r)
+			res.Header.Set("Location", "https://example.com/again")
+			return res, nil
+		})}
+		s := newScanner(client, publicResolver, 20, 100)
+		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{remaining: 20})
+		if category(err) != "TOO_MANY_REDIRECTS" {
+			t.Fatalf("got %v", err)
 		}
 	})
 	t.Run("response size", func(t *testing.T) {
@@ -89,10 +97,11 @@ func TestRedirectSafetyAndLimits(t *testing.T) {
 
 func TestCareerDiscoveryAndJSONLD(t *testing.T) {
 	base := mustURL(t, "https://www.example.kz/")
-	links, ats, atsURL := discover(base, []byte(`<nav><a href="/about">About</a><a href="/careers">Работа у нас</a><a href="https://boards.greenhouse.io/acme">Jobs</a></nav>`))
-	if len(links) != 1 || links[0].Path != "/careers" || ats != "Greenhouse" {
-		t.Fatalf("unexpected discovery: %#v %q", links, ats)
+	links, detection := discover(base, []byte(`<nav><a href="/about">About</a><a href="/careers">Работа у нас</a><script src="https://boards.greenhouse.io/acme"></script></nav>`))
+	if len(links) != 1 || links[0].Path != "/careers" || detection.Provider != "greenhouse" || detection.ProviderKey != "acme" || detection.Confidence != "high" || detection.Source != "src" {
+		t.Fatalf("unexpected discovery: %#v %#v", links, detection)
 	}
+	atsURL, _ := url.Parse(detection.URL)
 	if atsURL == nil || atsURL.Hostname() != "boards.greenhouse.io" {
 		t.Fatal("ATS URL missing")
 	}
@@ -111,6 +120,35 @@ func TestCareerDiscoveryAndJSONLD(t *testing.T) {
 	}
 	if _, err := parseJSONLD([]byte(`{"@type":`), base, "example.kz"); err == nil {
 		t.Fatal("malformed json-ld accepted")
+	}
+}
+
+func TestCareerListingDoesNotTreatFiltersAsJobs(t *testing.T) {
+	base := mustURL(t, "https://job.example.kz/")
+	links, _ := discover(base, []byte(`<a href="/search?categories=33">66 вакансий</a><a href="/search?cities=1">Алматы</a>`))
+	if len(links) != 1 || links[0].String() != "https://job.example.kz/search" {
+		t.Fatalf("listing links were not canonicalized: %#v", links)
+	}
+	_, jobs, _ := extractPage(mustURL(t, "https://job.example.kz/search"), []byte(`<a href="/search?categories=8">IT вакансии</a><a href="/vacancy/backend-engineer">Backend Engineer</a>`), "job.example.kz")
+	if len(jobs) != 1 || jobs[0].Path != "/vacancy/backend-engineer" {
+		t.Fatalf("unexpected detail links: %#v", jobs)
+	}
+}
+
+func TestATSDetectionProvidersAndKeys(t *testing.T) {
+	cases := map[string]string{"https://jobs.lever.co/acme": "lever", "https://tenant.wd3.myworkdayjobs.com/en-US/jobs": "workday", "https://careers.smartrecruiters.com/Acme": "smartrecruiters", "https://jobs.ashbyhq.com/acme": "ashby", "https://acme.recruitee.com": "recruitee", "https://apply.workable.com/acme": "workable", "https://acme.bamboohr.com/careers": "bamboohr", "https://acme.teamtailor.com/jobs": "teamtailor", "https://acme.jobs.personio.com": "personio"}
+	for raw, provider := range cases {
+		d, ok := detectATSURL(raw, "href")
+		if !ok || d.Provider != provider || d.ProviderKey == "" {
+			t.Errorf("%s => %#v", raw, d)
+		}
+	}
+}
+
+func TestBoundedCareerCandidates(t *testing.T) {
+	rows := commonCareerCandidates(mustURL(t, "https://example.kz"))
+	if len(rows) > 13 || rows[0].Path != "/career" {
+		t.Fatalf("unexpected candidates: %d %#v", len(rows), rows)
 	}
 }
 

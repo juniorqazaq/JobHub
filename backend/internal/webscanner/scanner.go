@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -18,7 +19,6 @@ import (
 
 	"golang.org/x/net/html"
 	"jobhub-ai/backend/internal/jobs"
-	"jobhub-ai/backend/internal/providers/greenhouse"
 )
 
 const MaxRequests = 30
@@ -35,20 +35,24 @@ func (netResolver) LookupIP(ctx context.Context, network, host string) ([]net.IP
 }
 
 type Result struct {
-	ID            string
-	Domain        string
-	CareerURL     string
-	ATS           string
-	StartedAt     time.Time
-	CompletedAt   time.Time
-	Status        string
-	ErrorCategory string
-	RequestCount  int
-	VacancyURLs   int
-	Parsed        int
-	Skipped       int
-	Warnings      []string
-	Items         []jobs.ImportedJob
+	ID              string
+	Domain          string
+	CareerURL       string
+	ATS             string
+	ProviderKey     string
+	ATSURL          string
+	ATSConfidence   string
+	DetectionSource string
+	StartedAt       time.Time
+	CompletedAt     time.Time
+	Status          string
+	ErrorCategory   string
+	RequestCount    int
+	VacancyURLs     int
+	Parsed          int
+	Skipped         int
+	Warnings        []string
+	Items           []jobs.ImportedJob
 }
 
 type Scanner struct {
@@ -56,6 +60,7 @@ type Scanner struct {
 	resolver    Resolver
 	maxRequests int
 	maxBytes    int64
+	adapters    adapterRegistry
 }
 
 func New(client *http.Client) *Scanner {
@@ -87,7 +92,7 @@ func newScanner(client *http.Client, resolver Resolver, maxRequests int, maxByte
 		}
 		c.Transport = transport
 	}
-	return &Scanner{client: &c, resolver: resolver, maxRequests: maxRequests, maxBytes: maxBytes}
+	return &Scanner{client: &c, resolver: resolver, maxRequests: maxRequests, maxBytes: maxBytes, adapters: defaultRegistry(&c)}
 }
 
 var scanSequence atomic.Uint64
@@ -115,27 +120,24 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		out.ErrorCategory = category(err)
 		return out, err
 	}
-	links, ats, atsURL := discover(final, home)
-	out.ATS = ats
-	if ats == "Greenhouse" && atsURL != nil {
+	links, detection := discover(final, home)
+	out.ATS, out.ProviderKey, out.ATSURL, out.ATSConfidence, out.DetectionSource = detection.Provider, detection.ProviderKey, detection.URL, detection.Confidence, detection.Source
+	if detection.Provider == "greenhouse" && detection.URL != "" {
+		atsURL, _ := url.Parse(detection.URL)
 		parts := strings.Split(strings.Trim(atsURL.Path, "/"), "/")
 		if len(parts) > 0 && parts[0] != "" && budget.remaining > 0 {
 			budget.remaining--
-			ghBudget, budgetErr := greenhouse.NewBudget(1, MaxVacancies)
-			if budgetErr == nil {
-				client, clientErr := greenhouse.NewClient(parts[0], ghBudget, s.client)
-				if clientErr == nil {
-					collected, collectErr := client.Collect(ctx)
-					out.RequestCount = s.maxRequests - budget.remaining
-					if collectErr == nil {
-						out.CareerURL = atsURL.String()
-						out.Items = collected.Items
-						out.VacancyURLs = collected.Fetched
-						out.Parsed = len(collected.Items)
-						out.Skipped = collected.Skipped + collected.Malformed
-						out.Status = "succeeded"
-						return out, nil
-					}
+			if adapter := s.adapters["greenhouse"]; adapter != nil {
+				collected, collectErr := adapter.Collect(ctx, parts[0], MaxVacancies)
+				out.RequestCount = s.maxRequests - budget.remaining
+				if collectErr == nil {
+					out.CareerURL = atsURL.String()
+					out.Items = collected.Items
+					out.VacancyURLs = collected.Fetched
+					out.Parsed = len(collected.Items)
+					out.Skipped = collected.Skipped + collected.Malformed
+					out.Status = "succeeded"
+					return out, nil
 				}
 			}
 		}
@@ -151,19 +153,36 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		out.RequestCount = s.maxRequests - budget.remaining
 	}
 	career := final
-	if len(links) > 0 {
-		career = links[0]
-	}
-	out.CareerURL = career.String()
 	careerBody := home
-	if career.String() != final.String() {
-		careerBody, career, err = s.fetch(ctx, career, budget)
+	careerFetched := false
+	for _, candidate := range links {
+		body, candidateFinal, candidateErr := s.fetch(ctx, candidate, budget)
 		out.RequestCount = s.maxRequests - budget.remaining
-		if err != nil {
-			out.ErrorCategory = category(err)
-			return out, err
+		if candidateErr != nil {
+			continue
 		}
+		careerBody = body
+		career = candidateFinal
+		careerFetched = true
+		break
+	}
+	if !careerFetched {
+		for _, candidate := range commonCareerCandidates(final) {
+			body, candidateFinal, candidateErr := s.fetch(ctx, candidate, budget)
+			out.RequestCount = s.maxRequests - budget.remaining
+			if candidateErr != nil {
+				continue
+			}
+			careerBody = body
+			career = candidateFinal
+			careerFetched = true
+			break
+		}
+	}
+	if careerFetched {
 		out.CareerURL = career.String()
+	} else if detection.URL != "" {
+		out.CareerURL = detection.URL
 	}
 	items, jobLinks, warnings := extractPage(career, careerBody, out.Domain)
 	out.Warnings = warnings
@@ -236,11 +255,18 @@ func (s *Scanner) fetch(ctx context.Context, target *url.URL, budget *fetchBudge
 		if len(via) >= 5 {
 			return scanError("TOO_MANY_REDIRECTS")
 		}
+		if budget.remaining <= 0 {
+			return scanError("REQUEST_LIMIT")
+		}
+		budget.remaining--
 		_, e := ValidateURL(r.Context(), r.URL.String(), s.resolver)
 		return e
 	}
 	res, err := client.Do(req)
 	if err != nil {
+		if cat := category(err); cat != "SCAN_FAILED" {
+			return nil, nil, scanError(cat)
+		}
 		return nil, nil, scanError("TRANSPORT_FAILED")
 	}
 	defer res.Body.Close()
@@ -295,22 +321,55 @@ func NormalizeDomain(host string) string {
 	return strings.TrimPrefix(strings.ToLower(strings.TrimSuffix(host, ".")), "www.")
 }
 
-var careerTerms = []string{"career", "careers", "job", "jobs", "vacancy", "vacancies", "work-with-us", "join-us", "career-opportunities", "вакансии", "карьера", "работа", "работа у нас", "бос орындар", "мансап", "жұмыс"}
+var careerTerms = []string{"career", "careers", "job", "jobs", "vacancy", "vacancies", "work-with-us", "join-us", "career-opportunities", "ваканс", "карьера", "работа", "работа у нас", "бос орындар", "вакансиялар", "мансап", "жұмыс"}
 
-func discover(base *url.URL, body []byte) ([]*url.URL, string, *url.URL) {
+type Detection struct{ Provider, ProviderKey, URL, Confidence, Source string }
+type atsPattern struct {
+	provider string
+	hosts    []string
+	key      *regexp.Regexp
+}
+
+var atsPatterns = []atsPattern{
+	{"greenhouse", []string{"greenhouse.io"}, regexp.MustCompile(`(?i)(?:boards\.greenhouse\.io|boards-api\.greenhouse\.io/v1/boards)/([a-z0-9_-]+)`)},
+	{"lever", []string{"lever.co"}, regexp.MustCompile(`(?i)(?:jobs\.lever\.co|api\.lever\.co/v0/postings)/([a-z0-9_-]+)`)},
+	{"workday", []string{"myworkdayjobs.com"}, regexp.MustCompile(`(?i)https?://([a-z0-9_-]+)\.wd\d+\.myworkdayjobs\.com`)},
+	{"smartrecruiters", []string{"smartrecruiters.com"}, regexp.MustCompile(`(?i)(?:careers\.smartrecruiters\.com|api\.smartrecruiters\.com/v1/companies)/([a-z0-9_-]+)`)},
+	{"ashby", []string{"ashbyhq.com"}, regexp.MustCompile(`(?i)(?:jobs\.ashbyhq\.com|api\.ashbyhq\.com/posting-api/job-board)/([a-z0-9_-]+)`)},
+	{"recruitee", []string{"recruitee.com"}, regexp.MustCompile(`(?i)https?://([a-z0-9_-]+)\.recruitee\.com`)},
+	{"workable", []string{"workable.com"}, regexp.MustCompile(`(?i)(?:apply|jobs)\.workable\.com/([a-z0-9_-]+)`)},
+	{"bamboohr", []string{"bamboohr.com"}, regexp.MustCompile(`(?i)https?://([a-z0-9_-]+)\.bamboohr\.com`)},
+	{"teamtailor", []string{"teamtailor.com"}, regexp.MustCompile(`(?i)https?://([a-z0-9_-]+)\.teamtailor\.com`)},
+	{"personio", []string{"personio.com", "personio.de"}, regexp.MustCompile(`(?i)https?://([a-z0-9_-]+)\.jobs\.personio\.(?:com|de)`)},
+}
+
+func discover(base *url.URL, body []byte) ([]*url.URL, Detection) {
 	doc, err := html.Parse(strings.NewReader(string(body)))
 	if err != nil {
-		return nil, "", nil
+		return nil, Detection{}
 	}
 	type candidate struct {
 		u     *url.URL
 		score int
 	}
 	var rows []candidate
-	ats := ""
-	var atsURL *url.URL
+	detection := Detection{}
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			for _, key := range []string{"href", "src", "action"} {
+				raw := attr(n, key)
+				if raw == "" {
+					continue
+				}
+				u, parseErr := base.Parse(raw)
+				if parseErr == nil && detection.Provider == "" {
+					if found, ok := detectATSURL(u.String(), key); ok {
+						detection = found
+					}
+				}
+			}
+		}
 		if n.Type == html.ElementNode && n.Data == "a" {
 			href := attr(n, "href")
 			u, err := base.Parse(href)
@@ -325,12 +384,12 @@ func discover(base *url.URL, body []byte) ([]*url.URL, string, *url.URL) {
 				}
 				if score > 0 && NormalizeDomain(u.Hostname()) == NormalizeDomain(base.Hostname()) {
 					u.Fragment = ""
+					// Query parameters on career landing links are commonly filters.
+					// Start from the canonical listing so one category cannot consume the scan.
+					if isListingPath(u.Path) {
+						u.RawQuery = ""
+					}
 					rows = append(rows, candidate{u, score})
-				}
-				if a := detectATS(u.Hostname()); a != "" {
-					ats = a
-					copyURL := *u
-					atsURL = &copyURL
 				}
 			}
 		}
@@ -349,16 +408,53 @@ func discover(base *url.URL, body []byte) ([]*url.URL, string, *url.URL) {
 			out = append(out, r.u)
 		}
 	}
-	return out, ats, atsURL
+	return out, detection
 }
-func detectATS(host string) string {
-	host = strings.ToLower(host)
-	for _, x := range []struct{ k, n string }{{"greenhouse.io", "Greenhouse"}, {"lever.co", "Lever"}, {"ashbyhq.com", "Ashby"}, {"myworkdayjobs.com", "Workday"}, {"smartrecruiters.com", "SmartRecruiters"}, {"workable.com", "Workable"}, {"recruitee.com", "Recruitee"}} {
-		if strings.Contains(host, x.k) {
-			return x.n
+func detectATSURL(raw, source string) (Detection, bool) {
+	lower := strings.ToLower(raw)
+	for _, p := range atsPatterns {
+		matched := false
+		for _, host := range p.hosts {
+			if strings.Contains(lower, host) {
+				matched = true
+				break
+			}
 		}
+		if !matched {
+			continue
+		}
+		d := Detection{Provider: p.provider, URL: raw, Confidence: "medium", Source: source}
+		if match := p.key.FindStringSubmatch(raw); len(match) > 1 && match[1] != "" {
+			d.ProviderKey = match[1]
+			d.Confidence = "high"
+		}
+		return d, true
 	}
-	return ""
+	return Detection{}, false
+}
+
+func commonCareerCandidates(base *url.URL) []*url.URL {
+	paths := []string{"/career", "/careers", "/job", "/jobs", "/vacancy", "/vacancies", "/about/career", "/about/careers", "/company/careers", "/work-with-us", "/join-us"}
+	out := make([]*url.URL, 0, len(paths)+2)
+	for _, path := range paths {
+		u := *base
+		u.Path = path
+		u.RawQuery = ""
+		u.Fragment = ""
+		out = append(out, &u)
+	}
+	for _, prefix := range []string{"careers.", "jobs."} {
+		u := *base
+		u.Host = prefix + base.Hostname()
+		if port := base.Port(); port != "" {
+			u.Host = net.JoinHostPort(prefix+base.Hostname(), port)
+		}
+		u.Path = "/"
+		u.RawQuery = ""
+		u.Fragment = ""
+		out = append(out, &u)
+	}
+	return out
 }
 
 func sitemapCareerLinks(base *url.URL, body []byte) []*url.URL {
@@ -416,8 +512,7 @@ func extractPage(base *url.URL, body []byte, domain string) ([]jobs.ImportedJob,
 		if n.Type == html.ElementNode && n.Data == "a" {
 			u, err := base.Parse(attr(n, "href"))
 			if err == nil && NormalizeDomain(u.Hostname()) == NormalizeDomain(base.Hostname()) {
-				hay := strings.ToLower(u.Path + " " + nodeText(n))
-				if strings.Contains(hay, "job") || strings.Contains(hay, "vacan") || strings.Contains(hay, "ваканс") || strings.Contains(hay, "бос орын") {
+				if isJobDetailPath(u.Path) {
 					u.Fragment = ""
 					links = append(links, u)
 				}
@@ -429,6 +524,22 @@ func extractPage(base *url.URL, body []byte, domain string) ([]jobs.ImportedJob,
 	}
 	walk(doc)
 	return items, uniqueURLs(links), warnings
+}
+
+func isListingPath(path string) bool {
+	p := strings.TrimSuffix(strings.ToLower(path), "/")
+	return p == "/search" || p == "/career" || p == "/careers" || p == "/jobs" || p == "/vacancies" || p == "/vacancy"
+}
+
+func isJobDetailPath(path string) bool {
+	p := strings.Trim(strings.ToLower(path), "/")
+	parts := strings.Split(p, "/")
+	for i, part := range parts {
+		if (part == "job" || part == "jobs" || part == "vacancy" || part == "vacancies") && i+1 < len(parts) && strings.TrimSpace(parts[i+1]) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func extractHTMLJob(base *url.URL, body []byte, domain string) (jobs.ImportedJob, bool) {
