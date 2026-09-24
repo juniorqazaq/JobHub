@@ -23,3 +23,25 @@ func RequireRole(service auth.Service, role string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func RequireTrustedOrigin(origin string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestOrigin := c.GetHeader("Origin")
+		if requestOrigin != "" && requestOrigin != origin {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN_ORIGIN", "message": "Request origin is not trusted"}})
+			return
+		}
+		c.Next()
+	}
+}
+
+func RequireCSRF(service auth.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, _ := c.Cookie(auth.SessionCookieName)
+		if err := service.ValidateCSRF(c.Request.Context(), token, c.GetHeader(auth.CSRFHeaderName)); err != nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "CSRF_INVALID", "message": "CSRF token is invalid"}})
+			return
+		}
+		c.Next()
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,20 +135,126 @@ func (s *PostgresStore) Get(ctx context.Context, rawID string) (Job, error) {
 	return mapRow(row), nil
 }
 
+func (s *PostgresStore) ListForEmployer(ctx context.Context, rawUserID string) ([]Job, error) {
+	userID, err := parseUUID(rawUserID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	rows, err := s.queries.ListEmployerJobs(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list employer jobs: %w", err)
+	}
+	items := make([]Job, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, mapRow(row))
+	}
+	return items, nil
+}
+
+func (s *PostgresStore) GetForEmployer(ctx context.Context, rawUserID, rawID string) (Job, error) {
+	userID, id, err := parseActorAndJob(rawUserID, rawID)
+	if err != nil {
+		return Job{}, ErrNotFound
+	}
+	row, err := s.queries.GetEmployerJob(ctx, dbgen.GetEmployerJobParams{ID: id, UserID: userID})
+	return mapOwnedRow(row, err, "get employer job")
+}
+
+func (s *PostgresStore) CreateForEmployer(ctx context.Context, rawUserID string, input NativeJobInput) (Job, error) {
+	userID, err := parseUUID(rawUserID)
+	if err != nil {
+		return Job{}, ErrNotFound
+	}
+	row, err := s.queries.CreateNativeJob(ctx, dbgen.CreateNativeJobParams{
+		UserID: userID, Title: input.Title, Category: nullableText(input.Category), Description: nullableText(input.Description),
+		Responsibilities: nullableText(input.Responsibilities), Requirements: nullableText(input.Requirements), NiceToHave: nullableText(input.NiceToHave),
+		Skills: input.Skills, Location: nullableText(input.Location), WorkMode: nullableText(input.WorkMode), EmploymentType: nullableText(input.EmploymentType),
+		ExperienceLevel: nullableText(input.ExperienceLevel), SalaryMin: nullableNumeric(input.SalaryMin), SalaryMax: nullableNumeric(input.SalaryMax),
+		SalaryCurrency: nullableText(input.SalaryCurrency), SalaryPeriod: nullableText(input.SalaryPeriod), SalaryVisible: input.SalaryVisible,
+		Benefits: input.Benefits, ExpiresAt: nullableTime(input.ExpiresAt),
+	})
+	return mapOwnedRow(row, err, "create employer job")
+}
+
+func (s *PostgresStore) UpdateForEmployer(ctx context.Context, rawUserID, rawID string, input NativeJobInput) (Job, error) {
+	userID, id, err := parseActorAndJob(rawUserID, rawID)
+	if err != nil {
+		return Job{}, ErrNotFound
+	}
+	row, err := s.queries.UpdateNativeJob(ctx, dbgen.UpdateNativeJobParams{
+		Title: input.Title, Category: nullableText(input.Category), Description: nullableText(input.Description), Responsibilities: nullableText(input.Responsibilities),
+		Requirements: nullableText(input.Requirements), NiceToHave: nullableText(input.NiceToHave), Skills: input.Skills, Location: nullableText(input.Location),
+		WorkMode: nullableText(input.WorkMode), EmploymentType: nullableText(input.EmploymentType), ExperienceLevel: nullableText(input.ExperienceLevel),
+		SalaryMin: nullableNumeric(input.SalaryMin), SalaryMax: nullableNumeric(input.SalaryMax), SalaryCurrency: nullableText(input.SalaryCurrency),
+		SalaryPeriod: nullableText(input.SalaryPeriod), SalaryVisible: input.SalaryVisible, Benefits: input.Benefits, ExpiresAt: nullableTime(input.ExpiresAt),
+		ID: id, UserID: userID,
+	})
+	return mapOwnedRow(row, err, "update employer job")
+}
+
+func (s *PostgresStore) TransitionForEmployer(ctx context.Context, rawUserID, rawID, status string) (Job, error) {
+	userID, id, err := parseActorAndJob(rawUserID, rawID)
+	if err != nil {
+		return Job{}, ErrNotFound
+	}
+	row, err := s.queries.TransitionNativeJob(ctx, dbgen.TransitionNativeJobParams{PublicationStatus: nullableText(status), ID: id, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Job{}, ErrInvalidTransition
+	}
+	if err != nil {
+		return Job{}, fmt.Errorf("transition employer job: %w", err)
+	}
+	return mapRow(row), nil
+}
+
+func (s *PostgresStore) DeleteForEmployer(ctx context.Context, rawUserID, rawID string) error {
+	userID, id, err := parseActorAndJob(rawUserID, rawID)
+	if err != nil {
+		return ErrNotFound
+	}
+	_, err = s.queries.SoftDeleteNativeJob(ctx, dbgen.SoftDeleteNativeJobParams{ID: id, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("delete employer job: %w", err)
+	}
+	return nil
+}
+
+func mapOwnedRow(row dbgen.JobhubJob, err error, operation string) (Job, error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Job{}, ErrNotFound
+	}
+	if err != nil {
+		return Job{}, fmt.Errorf("%s: %w", operation, err)
+	}
+	return mapRow(row), nil
+}
+
 func mapRow(row dbgen.JobhubJob) Job {
 	job := Job{
 		ID: formatUUID(row.ID), Source: row.Source, SourceName: sourceName(row.Source),
 		ExternalID: textValue(row.ExternalID), SourceURL: textValue(row.SourceUrl),
 		UpstreamSourceName: textValue(row.UpstreamSourceName), CompanyName: textValue(row.CompanyNameRaw),
-		Title: row.Title, Location: textValue(row.LocationRaw), Description: textValue(row.Description),
+		CompanyID: formatUUID(row.CompanyID), Title: row.Title, Category: textValue(row.Category), Location: textValue(row.LocationRaw), Description: textValue(row.Description),
+		Responsibilities: textValue(row.Responsibilities), Requirements: textValue(row.Requirements), NiceToHave: textValue(row.NiceToHave),
+		Skills: row.Skills, WorkMode: textValue(row.WorkMode), ExperienceLevel: textValue(row.ExperienceLevel),
 		DescriptionKind: row.DescriptionKind, EmploymentType: textValue(row.EmploymentTypeRaw),
-		SalaryRaw: textValue(row.SalaryRaw), ApplicationMethod: row.ApplicationMethod,
+		SalaryRaw: textValue(row.SalaryRaw), SalaryMin: numericValue(row.SalaryMin), SalaryMax: numericValue(row.SalaryMax),
+		SalaryCurrency: textValue(row.SalaryCurrency), SalaryPeriod: textValue(row.SalaryPeriod), SalaryVisible: row.SalaryVisible,
+		Benefits: row.Benefits, ApplicationMethod: row.ApplicationMethod, PublicationStatus: textValue(row.PublicationStatus), ModerationStatus: row.ModerationStatus,
 		ApplyURL: textValue(row.ApplyUrl), FirstSeenAt: row.FirstSeenAt.Time,
-		LastSeenAt: row.LastSeenAt.Time, LastSyncedAt: row.LastSyncedAt.Time,
+		LastSeenAt: row.LastSeenAt.Time, LastSyncedAt: row.LastSyncedAt.Time, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+	}
+	if job.Source == "jobhub" {
+		job.EmploymentType = textValue(row.EmploymentType)
 	}
 	job.ExternalPublishedAt = timePtr(row.ExternalPublishedAt)
 	job.ExternalUpdatedAt = timePtr(row.ExternalUpdatedAt)
 	job.ExternalExpiresAt = timePtr(row.ExternalExpiresAt)
+	job.ExpiresAt = timePtr(row.ExpiresAt)
+	job.PublishedAt = timePtr(row.PublishedAt)
 	return job
 }
 
@@ -174,6 +281,25 @@ func nullableTime(value *time.Time) pgtype.Timestamptz {
 	}
 	return timestamptz(*value)
 }
+func nullableNumeric(value *float64) pgtype.Numeric {
+	if value == nil {
+		return pgtype.Numeric{}
+	}
+	var result pgtype.Numeric
+	_ = result.Scan(strconv.FormatFloat(*value, 'f', -1, 64))
+	return result
+}
+func numericValue(value pgtype.Numeric) *float64 {
+	if !value.Valid {
+		return nil
+	}
+	converted, err := value.Float64Value()
+	if err != nil || !converted.Valid {
+		return nil
+	}
+	result := converted.Float64
+	return &result
+}
 func timePtr(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -191,6 +317,15 @@ func parseUUID(value string) (pgtype.UUID, error) {
 	var bytes [16]byte
 	copy(bytes[:], decoded)
 	return pgtype.UUID{Bytes: bytes, Valid: true}, nil
+}
+
+func parseActorAndJob(rawUserID, rawID string) (pgtype.UUID, pgtype.UUID, error) {
+	userID, err := parseUUID(rawUserID)
+	if err != nil {
+		return pgtype.UUID{}, pgtype.UUID{}, err
+	}
+	id, err := parseUUID(rawID)
+	return userID, id, err
 }
 
 func formatUUID(value pgtype.UUID) string {

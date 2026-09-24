@@ -18,7 +18,7 @@ func HTTP(logger *slog.Logger, origin string) gin.HandlerFunc {
 		if c.GetHeader("Origin") == origin {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
 		}
 		if c.Request.Method == http.MethodOptions {

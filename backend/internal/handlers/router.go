@@ -11,15 +11,20 @@ import (
 
 func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras ...any) *gin.Engine {
 	var jobReader jobs.Reader
+	var employerJobs jobs.EmployerStore
 	var authService auth.Service
 	environment := "development"
 	for _, extra := range extras {
-		switch value := extra.(type) {
-		case jobs.Reader:
+		if value, ok := extra.(jobs.Reader); ok {
 			jobReader = value
-		case auth.Service:
+		}
+		if value, ok := extra.(jobs.EmployerStore); ok {
+			employerJobs = value
+		}
+		if value, ok := extra.(auth.Service); ok {
 			authService = value
-		case string:
+		}
+		if value, ok := extra.(string); ok {
 			environment = value
 		}
 	}
@@ -45,6 +50,9 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 			session := c.MustGet("session").(auth.Session)
 			c.JSON(http.StatusOK, gin.H{"user": session.User})
 		})
+	}
+	if authService != nil && employerJobs != nil {
+		RegisterEmployerJobRoutes(router, employerJobs, authService, logger, origin)
 	}
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Endpoint not found"}})

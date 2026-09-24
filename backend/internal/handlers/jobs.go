@@ -37,9 +37,24 @@ type jobDTO struct {
 	Company             companyDTO     `json:"company"`
 	Location            string         `json:"location"`
 	EmploymentType      string         `json:"employment_type,omitempty"`
+	Category            string         `json:"category,omitempty"`
+	Responsibilities    string         `json:"responsibilities,omitempty"`
+	Requirements        string         `json:"requirements,omitempty"`
+	NiceToHave          string         `json:"nice_to_have,omitempty"`
+	Skills              []string       `json:"skills"`
+	WorkMode            string         `json:"work_mode,omitempty"`
+	ExperienceLevel     string         `json:"experience_level,omitempty"`
 	Summary             string         `json:"summary"`
 	DescriptionKind     string         `json:"description_kind"`
 	SalaryRaw           string         `json:"salary_raw,omitempty"`
+	SalaryMin           *float64       `json:"salary_min,omitempty"`
+	SalaryMax           *float64       `json:"salary_max,omitempty"`
+	SalaryCurrency      string         `json:"salary_currency,omitempty"`
+	SalaryPeriod        string         `json:"salary_period,omitempty"`
+	SalaryVisible       bool           `json:"salary_visible"`
+	Benefits            []string       `json:"benefits"`
+	PublicationStatus   string         `json:"publication_status,omitempty"`
+	ModerationStatus    string         `json:"moderation_status,omitempty"`
 	PostedAt            time.Time      `json:"posted_at"`
 	FirstSeenAt         time.Time      `json:"first_seen_at"`
 	LastSeenAt          time.Time      `json:"last_seen_at"`
@@ -47,6 +62,10 @@ type jobDTO struct {
 	ExternalPublishedAt *time.Time     `json:"external_published_at,omitempty"`
 	ExternalUpdatedAt   *time.Time     `json:"external_updated_at,omitempty"`
 	ExternalExpiresAt   *time.Time     `json:"external_expires_at,omitempty"`
+	ExpiresAt           *time.Time     `json:"expires_at,omitempty"`
+	PublishedAt         *time.Time     `json:"published_at,omitempty"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
 	Source              sourceDTO      `json:"source"`
 	Application         applicationDTO `json:"application"`
 }
@@ -125,18 +144,30 @@ func positiveInt(c *gin.Context, name string, fallback, min, max int) (int, bool
 
 func mapJob(job jobs.Job) jobDTO {
 	postedAt := job.FirstSeenAt
-	if job.ExternalPublishedAt != nil {
+	if job.PublishedAt != nil {
+		postedAt = *job.PublishedAt
+	} else if job.ExternalPublishedAt != nil {
 		postedAt = *job.ExternalPublishedAt
 	}
+	var companyID *string
+	if job.CompanyID != "" {
+		companyID = &job.CompanyID
+	}
 	return jobDTO{
-		ID: job.ID, Title: job.Title, Company: companyDTO{ID: nil, Name: job.CompanyName, Verified: false},
-		Location: job.Location, EmploymentType: job.EmploymentType, Summary: job.Description,
+		ID: job.ID, Title: job.Title, Company: companyDTO{ID: companyID, Name: job.CompanyName, Verified: false},
+		Location: job.Location, EmploymentType: job.EmploymentType, Category: job.Category,
+		Responsibilities: job.Responsibilities, Requirements: job.Requirements, NiceToHave: job.NiceToHave,
+		Skills: job.Skills, WorkMode: job.WorkMode, ExperienceLevel: job.ExperienceLevel, Summary: job.Description,
 		DescriptionKind: job.DescriptionKind, SalaryRaw: job.SalaryRaw, PostedAt: postedAt,
+		SalaryMin: job.SalaryMin, SalaryMax: job.SalaryMax, SalaryCurrency: job.SalaryCurrency,
+		SalaryPeriod: job.SalaryPeriod, SalaryVisible: job.SalaryVisible, Benefits: job.Benefits,
+		PublicationStatus: job.PublicationStatus, ModerationStatus: job.ModerationStatus,
 		FirstSeenAt: job.FirstSeenAt, LastSeenAt: job.LastSeenAt, LastSyncedAt: job.LastSyncedAt,
 		ExternalPublishedAt: job.ExternalPublishedAt, ExternalUpdatedAt: job.ExternalUpdatedAt,
-		ExternalExpiresAt: job.ExternalExpiresAt,
-		Source:            sourceDTO{ID: job.Source, Name: job.SourceName, Type: sourceType(job.Source), URL: job.SourceURL, UpstreamName: job.UpstreamSourceName},
-		Application:       applicationDTO{Method: job.ApplicationMethod, CTAURL: job.ApplyURL},
+		ExternalExpiresAt: job.ExternalExpiresAt, ExpiresAt: job.ExpiresAt, PublishedAt: job.PublishedAt,
+		CreatedAt: job.CreatedAt, UpdatedAt: job.UpdatedAt,
+		Source:      sourceDTO{ID: job.Source, Name: job.SourceName, Type: sourceType(job.Source), URL: job.SourceURL, UpstreamName: job.UpstreamSourceName},
+		Application: applicationDTO{Method: job.ApplicationMethod, CTAURL: job.ApplyURL},
 	}
 }
 
