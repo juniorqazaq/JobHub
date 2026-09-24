@@ -48,11 +48,11 @@ export function JobDetailPage() {
             {job.data.benefits?.length ? <section><h2>{t("jobDetail.benefitsTitle")}</h2><ul className="detail-list">{job.data.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></section> : null}
           </article>
           <aside className="detail-rail">
-            {job.data.application.method === "external" && job.data.application.ctaUrl ? <>
+            {job.data.application.method === "external" && job.data.application.ctaUrl ? <div className="job-detail-actions">
               <JobSaveButton job={job.data} />
               <a className="external-cta" href={job.data.application.ctaUrl} target="_blank" rel="noreferrer">{t("jobDetail.externalCta")}<ExternalLink size={18} aria-hidden="true" /></a>
               <p className="detail-rail__hint">{t("jobDetail.externalHint", { source: job.data.source.name })}</p>
-            </> : <div className="job-detail-actions"><JobSaveButton job={job.data} /><ApplyAction job={job.data} /></div>}
+            </div> : <div className="job-detail-actions"><JobSaveButton job={job.data} /><ApplyAction job={job.data} /></div>}
             <section>
               <h2>{t("jobDetail.sourceTitle")}</h2>
               <p className="detail-source-name">{job.data.source.name}</p>

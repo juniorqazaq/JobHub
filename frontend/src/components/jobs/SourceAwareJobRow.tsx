@@ -17,7 +17,7 @@ export function SourceAwareJobRow({ job, externalLabel, sourceLabel, snippetLabe
     <article className="source-job-row">
       <div className="source-job-row__main">
         <div className="source-job-row__meta">
-          <Badge tone={external ? "warning" : "success"}>{sourceLabel}: {job.source.name}</Badge>
+          <Badge tone={external ? "warning" : "neutral"}>{sourceLabel}: {job.source.name}</Badge>
           {job.descriptionKind === "snippet" ? <span>{snippetLabel}</span> : null}
         </div>
         <h3>{job.title}</h3>

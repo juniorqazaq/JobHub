@@ -38,7 +38,7 @@ export function EmployerVacanciesPage() {
         {job.publicationStatus !== "closed" ? <Link className="ui-button ui-button--quiet ui-button--sm" to={`/employer/vacancies/${job.id}/edit`}><Pencil size={15} aria-hidden="true" /><span>{t("employer.edit")}</span></Link> : null}
         {job.publicationStatus === "draft" || job.publicationStatus === "paused" ? <Button size="sm" variant="secondary" leadingIcon={<Play size={15} />} disabled={transition.isPending} onClick={() => transition.mutate({ id: job.id, status: "published" })}>{t("employer.publish")}</Button> : null}
         {job.publicationStatus === "published" ? <Button size="sm" variant="secondary" leadingIcon={<Pause size={15} />} disabled={transition.isPending} onClick={() => transition.mutate({ id: job.id, status: "paused" })}>{t("employer.pause")}</Button> : null}
-        {job.publicationStatus !== "closed" ? <Button size="sm" variant="quiet" leadingIcon={<XCircle size={15} />} disabled={transition.isPending} onClick={() => transition.mutate({ id: job.id, status: "closed" })}>{t("employer.close")}</Button> : null}
+        {job.publicationStatus !== "closed" ? <Button size="sm" variant="danger" leadingIcon={<XCircle size={15} />} disabled={transition.isPending} onClick={() => transition.mutate({ id: job.id, status: "closed" })}>{t("employer.close")}</Button> : null}
         {job.publicationStatus === "draft" || job.publicationStatus === "closed" ? <Button size="sm" variant="danger" leadingIcon={<Trash2 size={15} />} disabled={remove.isPending} onClick={() => doDelete(job.id)}>{t("employer.delete")}</Button> : null}
       </div>
     </article>)}</div> : null}

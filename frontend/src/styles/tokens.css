@@ -15,8 +15,12 @@
   --color-text-secondary: #4b5563;
   --color-text-muted: #6b7280;
   --color-success: #15803d;
-  --color-warning: #d97706;
+  --color-success-soft: #ecf8f0;
+  --color-warning: #9a5807;
+  --color-warning-soft: #fff7e6;
   --color-error: #dc2626;
+  --color-error-soft: #fef2f2;
+  --color-error-border: #fecaca;
   --color-focus: #1769e0;
   --color-overlay: rgb(17 24 39 / 52%);
 
