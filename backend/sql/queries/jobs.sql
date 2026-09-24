@@ -44,6 +44,7 @@ INSERT INTO jobhub.jobs (
     company_name_raw,
     title,
     location_raw,
+    canonical_city_id,
     description,
     description_kind,
     employment_type_raw,
@@ -65,6 +66,7 @@ INSERT INTO jobhub.jobs (
     sqlc.narg(company_name_raw),
     sqlc.arg(title),
     sqlc.narg(location_raw),
+    sqlc.narg(canonical_city_id),
     sqlc.narg(description),
     sqlc.arg(description_kind),
     sqlc.narg(employment_type_raw),
@@ -85,6 +87,7 @@ ON CONFLICT (source, external_id) DO UPDATE SET
     company_name_raw = EXCLUDED.company_name_raw,
     title = EXCLUDED.title,
     location_raw = EXCLUDED.location_raw,
+    canonical_city_id = EXCLUDED.canonical_city_id,
     description = EXCLUDED.description,
     description_kind = EXCLUDED.description_kind,
     employment_type_raw = EXCLUDED.employment_type_raw,
@@ -106,8 +109,13 @@ JOIN jobhub.job_sources s ON s.source = j.source
 WHERE s.enabled
   AND (NOT sqlc.arg(require_production_permissions)::boolean OR s.production_permissions_confirmed)
   AND jobhub.job_is_public(j)
-  AND (sqlc.narg(query)::text IS NULL OR j.title ILIKE '%' || sqlc.narg(query) || '%' OR j.company_name_raw ILIKE '%' || sqlc.narg(query) || '%')
-  AND (sqlc.narg(location)::text IS NULL OR j.location_raw ILIKE '%' || sqlc.narg(location) || '%');
+  AND (sqlc.narg(query)::text IS NULL OR j.title ILIKE '%' || sqlc.narg(query) || '%' OR j.company_name_raw ILIKE '%' || sqlc.narg(query) || '%' OR EXISTS (SELECT 1 FROM unnest(j.skills) skill WHERE skill ILIKE '%' || sqlc.narg(query) || '%'))
+  AND (sqlc.narg(city)::text IS NULL OR j.canonical_city_id = sqlc.narg(city))
+  AND (COALESCE(cardinality(sqlc.arg(work_modes)::text[]), 0) = 0 OR j.work_mode = ANY(sqlc.arg(work_modes)::text[]))
+  AND (sqlc.narg(salary_min)::numeric IS NULL OR (j.salary_visible AND j.salary_currency = sqlc.narg(currency) AND j.salary_period = 'month' AND COALESCE(j.salary_max, j.salary_min) >= sqlc.narg(salary_min)))
+  AND (sqlc.narg(experience_level)::text IS NULL OR j.experience_level = sqlc.narg(experience_level))
+  AND (sqlc.narg(employment_type)::text IS NULL OR j.employment_type = sqlc.narg(employment_type))
+  AND (sqlc.narg(posted_after)::timestamptz IS NULL OR COALESCE(j.external_published_at, j.published_at, j.first_seen_at) >= sqlc.narg(posted_after));
 
 -- name: ListPublicJobs :many
 SELECT j.*
@@ -116,9 +124,15 @@ JOIN jobhub.job_sources s ON s.source = j.source
 WHERE s.enabled
   AND (NOT sqlc.arg(require_production_permissions)::boolean OR s.production_permissions_confirmed)
   AND jobhub.job_is_public(j)
-  AND (sqlc.narg(query)::text IS NULL OR j.title ILIKE '%' || sqlc.narg(query) || '%' OR j.company_name_raw ILIKE '%' || sqlc.narg(query) || '%')
-  AND (sqlc.narg(location)::text IS NULL OR j.location_raw ILIKE '%' || sqlc.narg(location) || '%')
+  AND (sqlc.narg(query)::text IS NULL OR j.title ILIKE '%' || sqlc.narg(query) || '%' OR j.company_name_raw ILIKE '%' || sqlc.narg(query) || '%' OR EXISTS (SELECT 1 FROM unnest(j.skills) skill WHERE skill ILIKE '%' || sqlc.narg(query) || '%'))
+  AND (sqlc.narg(city)::text IS NULL OR j.canonical_city_id = sqlc.narg(city))
+  AND (COALESCE(cardinality(sqlc.arg(work_modes)::text[]), 0) = 0 OR j.work_mode = ANY(sqlc.arg(work_modes)::text[]))
+  AND (sqlc.narg(salary_min)::numeric IS NULL OR (j.salary_visible AND j.salary_currency = sqlc.narg(currency) AND j.salary_period = 'month' AND COALESCE(j.salary_max, j.salary_min) >= sqlc.narg(salary_min)))
+  AND (sqlc.narg(experience_level)::text IS NULL OR j.experience_level = sqlc.narg(experience_level))
+  AND (sqlc.narg(employment_type)::text IS NULL OR j.employment_type = sqlc.narg(employment_type))
+  AND (sqlc.narg(posted_after)::timestamptz IS NULL OR COALESCE(j.external_published_at, j.published_at, j.first_seen_at) >= sqlc.narg(posted_after))
 ORDER BY
+    CASE WHEN sqlc.narg(preferred_city)::text IS NOT NULL AND j.canonical_city_id = sqlc.narg(preferred_city) THEN 0 ELSE 1 END,
     CASE WHEN sqlc.arg(sort)::text = 'oldest' THEN COALESCE(j.external_published_at, j.first_seen_at) END ASC,
     CASE WHEN sqlc.arg(sort)::text <> 'oldest' THEN COALESCE(j.external_published_at, j.first_seen_at) END DESC,
     j.id DESC
@@ -156,7 +170,7 @@ WHERE j.id = sqlc.arg(id)
 -- name: CreateNativeJob :one
 INSERT INTO jobhub.jobs (
     source, company_id, created_by_user_id, company_name_raw, title, category, description, description_kind,
-    responsibilities, requirements, nice_to_have, skills, location_raw,
+    responsibilities, requirements, nice_to_have, skills, location_raw, canonical_city_id,
     work_mode, employment_type, experience_level, salary_min, salary_max,
     salary_currency, salary_period, salary_visible, benefits, application_method,
     source_status, publication_status, first_seen_at, last_seen_at, last_synced_at,
@@ -165,7 +179,7 @@ INSERT INTO jobhub.jobs (
 SELECT
     'jobhub', cm.company_id, sqlc.arg(user_id), c.name, sqlc.arg(title), sqlc.arg(category),
     sqlc.arg(description), 'full', sqlc.arg(responsibilities), sqlc.arg(requirements),
-    sqlc.narg(nice_to_have), sqlc.arg(skills)::text[], sqlc.arg(location),
+    sqlc.narg(nice_to_have), sqlc.arg(skills)::text[], sqlc.arg(location), sqlc.arg(canonical_city_id),
     sqlc.arg(work_mode), sqlc.arg(employment_type), sqlc.arg(experience_level),
     sqlc.narg(salary_min), sqlc.narg(salary_max), sqlc.narg(salary_currency),
     sqlc.narg(salary_period), sqlc.arg(salary_visible), sqlc.arg(benefits)::text[],
@@ -192,6 +206,7 @@ SET title = sqlc.arg(title),
     nice_to_have = sqlc.narg(nice_to_have),
     skills = sqlc.arg(skills)::text[],
     location_raw = sqlc.arg(location),
+    canonical_city_id = sqlc.arg(canonical_city_id),
     work_mode = sqlc.arg(work_mode),
     employment_type = sqlc.arg(employment_type),
     experience_level = sqlc.arg(experience_level),

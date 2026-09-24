@@ -22,6 +22,7 @@ type Profile struct {
 	FullName                 string           `json:"full_name"`
 	PhotoURL                 string           `json:"photo_url,omitempty"`
 	City                     string           `json:"city,omitempty"`
+	CityID                   string           `json:"city_id,omitempty"`
 	BirthYear                *int             `json:"birth_year,omitempty"`
 	BirthDate                string           `json:"birth_date,omitempty"`
 	Phone                    string           `json:"phone,omitempty"`
@@ -37,6 +38,7 @@ type Profile struct {
 	Currency                 string           `json:"currency,omitempty"`
 	SalaryPeriod             string           `json:"salary_period,omitempty"`
 	PreferredLocations       []string         `json:"preferred_locations"`
+	PreferredCityIDs         []string         `json:"preferred_city_ids"`
 	PreferredEmploymentTypes []string         `json:"preferred_employment_types"`
 	PreferredWorkModes       []string         `json:"preferred_work_modes"`
 	PreferredCategories      []string         `json:"preferred_categories"`

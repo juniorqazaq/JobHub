@@ -13,12 +13,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"jobhub-ai/backend/internal/auth"
 	"jobhub-ai/backend/internal/candidates"
+	"jobhub-ai/backend/internal/locations"
 )
 
 type profileRequest struct {
 	FullName                 string                      `json:"full_name"`
 	PhotoURL                 string                      `json:"photo_url"`
 	City                     string                      `json:"city"`
+	CityID                   string                      `json:"city_id"`
 	BirthYear                *int                        `json:"birth_year"`
 	BirthDate                string                      `json:"birth_date"`
 	Phone                    string                      `json:"phone"`
@@ -34,6 +36,7 @@ type profileRequest struct {
 	Currency                 string                      `json:"currency"`
 	SalaryPeriod             string                      `json:"salary_period"`
 	PreferredLocations       []string                    `json:"preferred_locations"`
+	PreferredCityIDs         []string                    `json:"preferred_city_ids"`
 	PreferredEmploymentTypes []string                    `json:"preferred_employment_types"`
 	PreferredWorkModes       []string                    `json:"preferred_work_modes"`
 	PreferredCategories      []string                    `json:"preferred_categories"`
@@ -323,6 +326,16 @@ func validateProfile(r profileRequest) (candidates.Profile, map[string]string) {
 	if r.ExperienceLevel != "" && !oneOf(r.ExperienceLevel, "internship", "junior", "middle", "senior", "lead") {
 		fields["experience_level"] = "invalid value"
 	}
+	if r.CityID != "" && !locations.Valid(r.CityID) {
+		fields["city_id"] = "invalid value"
+	}
+	seenCities := map[string]bool{}
+	for _, cityID := range r.PreferredCityIDs {
+		if !locations.Valid(cityID) || seenCities[cityID] {
+			fields["preferred_city_ids"] = "contains invalid or duplicate values"
+		}
+		seenCities[cityID] = true
+	}
 	if !oneOf(r.SearchStatus, "actively_looking", "open_to_offers", "not_looking") {
 		fields["search_status"] = "invalid value"
 	}
@@ -369,7 +382,24 @@ func validateProfile(r profileRequest) (candidates.Profile, map[string]string) {
 			fields["education"] = "contains invalid entries"
 		}
 	}
-	p := candidates.Profile{FullName: r.FullName, PhotoURL: strings.TrimSpace(r.PhotoURL), City: strings.TrimSpace(r.City), BirthYear: r.BirthYear, BirthDate: r.BirthDate, Phone: r.Phone, About: strings.TrimSpace(r.About), CurrentPosition: strings.TrimSpace(r.CurrentPosition), DesiredPosition: strings.TrimSpace(r.DesiredPosition), YearsExperience: r.YearsExperience, ExperienceLevel: r.ExperienceLevel, Skills: cleanList(r.Skills), Certifications: cleanList(r.Certifications), Languages: r.Languages, DesiredSalary: r.DesiredSalary, Currency: strings.ToUpper(strings.TrimSpace(r.Currency)), SalaryPeriod: r.SalaryPeriod, PreferredLocations: cleanList(r.PreferredLocations), PreferredEmploymentTypes: cleanList(r.PreferredEmploymentTypes), PreferredWorkModes: cleanList(r.PreferredWorkModes), PreferredCategories: cleanList(r.PreferredCategories), PreferredRoles: cleanList(r.PreferredRoles), SearchStatus: r.SearchStatus, GitHub: strings.TrimSpace(r.GitHub), LinkedIn: strings.TrimSpace(r.LinkedIn), Portfolio: strings.TrimSpace(r.Portfolio), Website: strings.TrimSpace(r.Website), AllowEmployerContact: r.AllowEmployerContact, ShowProfileToEmployers: r.ShowProfileToEmployers, ShowSalaryExpectations: r.ShowSalaryExpectations, WorkExperience: r.WorkExperience, Education: r.Education}
+	city := strings.TrimSpace(r.City)
+	if r.CityID != "" {
+		city = locations.Name(r.CityID, "en")
+	}
+	preferredLocations := cleanList(r.PreferredLocations)
+	if len(r.PreferredCityIDs) > 0 {
+		legacyLocations := make([]string, 0, len(preferredLocations))
+		for _, value := range preferredLocations {
+			if locations.Normalize(value) == "" {
+				legacyLocations = append(legacyLocations, value)
+			}
+		}
+		preferredLocations = legacyLocations
+		for _, id := range r.PreferredCityIDs {
+			preferredLocations = append(preferredLocations, locations.Name(id, "en"))
+		}
+	}
+	p := candidates.Profile{FullName: r.FullName, PhotoURL: strings.TrimSpace(r.PhotoURL), City: city, CityID: r.CityID, BirthYear: r.BirthYear, BirthDate: r.BirthDate, Phone: r.Phone, About: strings.TrimSpace(r.About), CurrentPosition: strings.TrimSpace(r.CurrentPosition), DesiredPosition: strings.TrimSpace(r.DesiredPosition), YearsExperience: r.YearsExperience, ExperienceLevel: r.ExperienceLevel, Skills: cleanList(r.Skills), Certifications: cleanList(r.Certifications), Languages: r.Languages, DesiredSalary: r.DesiredSalary, Currency: strings.ToUpper(strings.TrimSpace(r.Currency)), SalaryPeriod: r.SalaryPeriod, PreferredLocations: preferredLocations, PreferredCityIDs: r.PreferredCityIDs, PreferredEmploymentTypes: cleanList(r.PreferredEmploymentTypes), PreferredWorkModes: cleanList(r.PreferredWorkModes), PreferredCategories: cleanList(r.PreferredCategories), PreferredRoles: cleanList(r.PreferredRoles), SearchStatus: r.SearchStatus, GitHub: strings.TrimSpace(r.GitHub), LinkedIn: strings.TrimSpace(r.LinkedIn), Portfolio: strings.TrimSpace(r.Portfolio), Website: strings.TrimSpace(r.Website), AllowEmployerContact: r.AllowEmployerContact, ShowProfileToEmployers: r.ShowProfileToEmployers, ShowSalaryExpectations: r.ShowSalaryExpectations, WorkExperience: r.WorkExperience, Education: r.Education}
 	return p, fields
 }
 func httpURL(value string) bool {

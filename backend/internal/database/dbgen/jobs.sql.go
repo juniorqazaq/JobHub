@@ -63,18 +63,39 @@ JOIN jobhub.job_sources s ON s.source = j.source
 WHERE s.enabled
   AND (NOT $1::boolean OR s.production_permissions_confirmed)
   AND jobhub.job_is_public(j)
-  AND ($2::text IS NULL OR j.title ILIKE '%' || $2 || '%' OR j.company_name_raw ILIKE '%' || $2 || '%')
-  AND ($3::text IS NULL OR j.location_raw ILIKE '%' || $3 || '%')
+  AND ($2::text IS NULL OR j.title ILIKE '%' || $2 || '%' OR j.company_name_raw ILIKE '%' || $2 || '%' OR EXISTS (SELECT 1 FROM unnest(j.skills) skill WHERE skill ILIKE '%' || $2 || '%'))
+  AND ($3::text IS NULL OR j.canonical_city_id = $3)
+  AND (COALESCE(cardinality($4::text[]), 0) = 0 OR j.work_mode = ANY($4::text[]))
+  AND ($5::numeric IS NULL OR (j.salary_visible AND j.salary_currency = $6 AND j.salary_period = 'month' AND COALESCE(j.salary_max, j.salary_min) >= $5))
+  AND ($7::text IS NULL OR j.experience_level = $7)
+  AND ($8::text IS NULL OR j.employment_type = $8)
+  AND ($9::timestamptz IS NULL OR COALESCE(j.external_published_at, j.published_at, j.first_seen_at) >= $9)
 `
 
 type CountPublicJobsParams struct {
 	RequireProductionPermissions bool
 	Query                        pgtype.Text
-	Location                     pgtype.Text
+	City                         pgtype.Text
+	WorkModes                    []string
+	SalaryMin                    pgtype.Numeric
+	Currency                     pgtype.Text
+	ExperienceLevel              pgtype.Text
+	EmploymentType               pgtype.Text
+	PostedAfter                  pgtype.Timestamptz
 }
 
 func (q *Queries) CountPublicJobs(ctx context.Context, arg CountPublicJobsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countPublicJobs, arg.RequireProductionPermissions, arg.Query, arg.Location)
+	row := q.db.QueryRow(ctx, countPublicJobs,
+		arg.RequireProductionPermissions,
+		arg.Query,
+		arg.City,
+		arg.WorkModes,
+		arg.SalaryMin,
+		arg.Currency,
+		arg.ExperienceLevel,
+		arg.EmploymentType,
+		arg.PostedAfter,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -101,7 +122,7 @@ func (q *Queries) CreateIngestionRun(ctx context.Context, arg CreateIngestionRun
 const createNativeJob = `-- name: CreateNativeJob :one
 INSERT INTO jobhub.jobs (
     source, company_id, created_by_user_id, company_name_raw, title, category, description, description_kind,
-    responsibilities, requirements, nice_to_have, skills, location_raw,
+    responsibilities, requirements, nice_to_have, skills, location_raw, canonical_city_id,
     work_mode, employment_type, experience_level, salary_min, salary_max,
     salary_currency, salary_period, salary_visible, benefits, application_method,
     source_status, publication_status, first_seen_at, last_seen_at, last_synced_at,
@@ -110,12 +131,12 @@ INSERT INTO jobhub.jobs (
 SELECT
     'jobhub', cm.company_id, $1, c.name, $2, $3,
     $4, 'full', $5, $6,
-    $7, $8::text[], $9,
-    $10, $11, $12,
-    $13, $14, $15,
-    $16, $17, $18::text[],
+    $7, $8::text[], $9, $10,
+    $11, $12, $13,
+    $14, $15, $16,
+    $17, $18, $19::text[],
     'internal', 'active', 'draft', now(), now(), now(), 'infinity'::timestamptz,
-    $19, 'approved'
+    $20, 'approved'
 FROM jobhub.company_memberships cm
 JOIN jobhub.companies c ON c.id = cm.company_id
 JOIN jobhub.users u ON u.id = cm.user_id
@@ -125,7 +146,7 @@ WHERE cm.user_id = $1
   AND u.status = 'active'
 ORDER BY cm.created_at
 LIMIT 1
-RETURNING id, source, external_id, source_url, upstream_source_name, company_id, company_source_id, company_name_raw, title, location_raw, description, description_kind, employment_type_raw, salary_raw, salary_min, salary_max, salary_currency, salary_period, salary_gross, salary_is_estimated, application_method, apply_url, source_status, publication_status, first_seen_at, last_seen_at, last_synced_at, fresh_until, external_created_at, external_published_at, external_updated_at, external_updated_raw, external_expires_at, external_archived_at, created_at, updated_at, category, responsibilities, requirements, nice_to_have, skills, work_mode, employment_type, experience_level, benefits, salary_visible, expires_at, published_at, deleted_at, moderation_status, created_by_user_id
+RETURNING id, source, external_id, source_url, upstream_source_name, company_id, company_source_id, company_name_raw, title, location_raw, description, description_kind, employment_type_raw, salary_raw, salary_min, salary_max, salary_currency, salary_period, salary_gross, salary_is_estimated, application_method, apply_url, source_status, publication_status, first_seen_at, last_seen_at, last_synced_at, fresh_until, external_created_at, external_published_at, external_updated_at, external_updated_raw, external_expires_at, external_archived_at, created_at, updated_at, category, responsibilities, requirements, nice_to_have, skills, work_mode, employment_type, experience_level, benefits, salary_visible, expires_at, published_at, deleted_at, moderation_status, created_by_user_id, canonical_city_id
 `
 
 type CreateNativeJobParams struct {
@@ -138,6 +159,7 @@ type CreateNativeJobParams struct {
 	NiceToHave       pgtype.Text
 	Skills           []string
 	Location         pgtype.Text
+	CanonicalCityID  pgtype.Text
 	WorkMode         pgtype.Text
 	EmploymentType   pgtype.Text
 	ExperienceLevel  pgtype.Text
@@ -161,6 +183,7 @@ func (q *Queries) CreateNativeJob(ctx context.Context, arg CreateNativeJobParams
 		arg.NiceToHave,
 		arg.Skills,
 		arg.Location,
+		arg.CanonicalCityID,
 		arg.WorkMode,
 		arg.EmploymentType,
 		arg.ExperienceLevel,
@@ -225,6 +248,7 @@ func (q *Queries) CreateNativeJob(ctx context.Context, arg CreateNativeJobParams
 		&i.DeletedAt,
 		&i.ModerationStatus,
 		&i.CreatedByUserID,
+		&i.CanonicalCityID,
 	)
 	return i, err
 }
@@ -263,7 +287,7 @@ func (q *Queries) FailIngestionRun(ctx context.Context, arg FailIngestionRunPara
 }
 
 const getEmployerJob = `-- name: GetEmployerJob :one
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 FROM jobhub.jobs j
 JOIN jobhub.company_memberships cm ON cm.company_id = j.company_id
 WHERE j.id = $1
@@ -333,12 +357,13 @@ func (q *Queries) GetEmployerJob(ctx context.Context, arg GetEmployerJobParams) 
 		&i.DeletedAt,
 		&i.ModerationStatus,
 		&i.CreatedByUserID,
+		&i.CanonicalCityID,
 	)
 	return i, err
 }
 
 const getPublicJob = `-- name: GetPublicJob :one
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
 WHERE j.id = $1
@@ -407,6 +432,7 @@ func (q *Queries) GetPublicJob(ctx context.Context, arg GetPublicJobParams) (Job
 		&i.DeletedAt,
 		&i.ModerationStatus,
 		&i.CreatedByUserID,
+		&i.CanonicalCityID,
 	)
 	return i, err
 }
@@ -431,7 +457,7 @@ func (q *Queries) ImportedJobExists(ctx context.Context, arg ImportedJobExistsPa
 }
 
 const listEmployerJobs = `-- name: ListEmployerJobs :many
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 FROM jobhub.jobs j
 JOIN jobhub.company_memberships cm ON cm.company_id = j.company_id
 WHERE cm.user_id = $1
@@ -502,6 +528,7 @@ func (q *Queries) ListEmployerJobs(ctx context.Context, userID pgtype.UUID) ([]J
 			&i.DeletedAt,
 			&i.ModerationStatus,
 			&i.CreatedByUserID,
+			&i.CanonicalCityID,
 		); err != nil {
 			return nil, err
 		}
@@ -514,25 +541,38 @@ func (q *Queries) ListEmployerJobs(ctx context.Context, userID pgtype.UUID) ([]J
 }
 
 const listPublicJobs = `-- name: ListPublicJobs :many
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
 WHERE s.enabled
   AND (NOT $1::boolean OR s.production_permissions_confirmed)
   AND jobhub.job_is_public(j)
-  AND ($2::text IS NULL OR j.title ILIKE '%' || $2 || '%' OR j.company_name_raw ILIKE '%' || $2 || '%')
-  AND ($3::text IS NULL OR j.location_raw ILIKE '%' || $3 || '%')
+  AND ($2::text IS NULL OR j.title ILIKE '%' || $2 || '%' OR j.company_name_raw ILIKE '%' || $2 || '%' OR EXISTS (SELECT 1 FROM unnest(j.skills) skill WHERE skill ILIKE '%' || $2 || '%'))
+  AND ($3::text IS NULL OR j.canonical_city_id = $3)
+  AND (COALESCE(cardinality($4::text[]), 0) = 0 OR j.work_mode = ANY($4::text[]))
+  AND ($5::numeric IS NULL OR (j.salary_visible AND j.salary_currency = $6 AND j.salary_period = 'month' AND COALESCE(j.salary_max, j.salary_min) >= $5))
+  AND ($7::text IS NULL OR j.experience_level = $7)
+  AND ($8::text IS NULL OR j.employment_type = $8)
+  AND ($9::timestamptz IS NULL OR COALESCE(j.external_published_at, j.published_at, j.first_seen_at) >= $9)
 ORDER BY
-    CASE WHEN $4::text = 'oldest' THEN COALESCE(j.external_published_at, j.first_seen_at) END ASC,
-    CASE WHEN $4::text <> 'oldest' THEN COALESCE(j.external_published_at, j.first_seen_at) END DESC,
+    CASE WHEN $10::text IS NOT NULL AND j.canonical_city_id = $10 THEN 0 ELSE 1 END,
+    CASE WHEN $11::text = 'oldest' THEN COALESCE(j.external_published_at, j.first_seen_at) END ASC,
+    CASE WHEN $11::text <> 'oldest' THEN COALESCE(j.external_published_at, j.first_seen_at) END DESC,
     j.id DESC
-LIMIT $6 OFFSET $5
+LIMIT $13 OFFSET $12
 `
 
 type ListPublicJobsParams struct {
 	RequireProductionPermissions bool
 	Query                        pgtype.Text
-	Location                     pgtype.Text
+	City                         pgtype.Text
+	WorkModes                    []string
+	SalaryMin                    pgtype.Numeric
+	Currency                     pgtype.Text
+	ExperienceLevel              pgtype.Text
+	EmploymentType               pgtype.Text
+	PostedAfter                  pgtype.Timestamptz
+	PreferredCity                pgtype.Text
 	Sort                         string
 	PageOffset                   int32
 	PageSize                     int32
@@ -542,7 +582,14 @@ func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) 
 	rows, err := q.db.Query(ctx, listPublicJobs,
 		arg.RequireProductionPermissions,
 		arg.Query,
-		arg.Location,
+		arg.City,
+		arg.WorkModes,
+		arg.SalaryMin,
+		arg.Currency,
+		arg.ExperienceLevel,
+		arg.EmploymentType,
+		arg.PostedAfter,
+		arg.PreferredCity,
 		arg.Sort,
 		arg.PageOffset,
 		arg.PageSize,
@@ -606,6 +653,7 @@ func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) 
 			&i.DeletedAt,
 			&i.ModerationStatus,
 			&i.CreatedByUserID,
+			&i.CanonicalCityID,
 		); err != nil {
 			return nil, err
 		}
@@ -668,7 +716,7 @@ WHERE j.id = $2
         AND cm.user_id = $3
         AND cm.role = 'owner'
   )
-RETURNING j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+RETURNING j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 `
 
 type TransitionNativeJobParams struct {
@@ -732,6 +780,7 @@ func (q *Queries) TransitionNativeJob(ctx context.Context, arg TransitionNativeJ
 		&i.DeletedAt,
 		&i.ModerationStatus,
 		&i.CreatedByUserID,
+		&i.CanonicalCityID,
 	)
 	return i, err
 }
@@ -746,28 +795,29 @@ SET title = $1,
     nice_to_have = $6,
     skills = $7::text[],
     location_raw = $8,
-    work_mode = $9,
-    employment_type = $10,
-    experience_level = $11,
-    salary_min = $12,
-    salary_max = $13,
-    salary_currency = $14,
-    salary_period = $15,
-    salary_visible = $16,
-    benefits = $17::text[],
-    expires_at = $18,
+    canonical_city_id = $9,
+    work_mode = $10,
+    employment_type = $11,
+    experience_level = $12,
+    salary_min = $13,
+    salary_max = $14,
+    salary_currency = $15,
+    salary_period = $16,
+    salary_visible = $17,
+    benefits = $18::text[],
+    expires_at = $19,
     updated_at = now()
-WHERE j.id = $19
+WHERE j.id = $20
   AND j.source = 'jobhub'
   AND j.deleted_at IS NULL
   AND j.publication_status <> 'closed'
   AND EXISTS (
       SELECT 1 FROM jobhub.company_memberships cm
       WHERE cm.company_id = j.company_id
-        AND cm.user_id = $20
+        AND cm.user_id = $21
         AND cm.role = 'owner'
   )
-RETURNING j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id
+RETURNING j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 `
 
 type UpdateNativeJobParams struct {
@@ -779,6 +829,7 @@ type UpdateNativeJobParams struct {
 	NiceToHave       pgtype.Text
 	Skills           []string
 	Location         pgtype.Text
+	CanonicalCityID  pgtype.Text
 	WorkMode         pgtype.Text
 	EmploymentType   pgtype.Text
 	ExperienceLevel  pgtype.Text
@@ -803,6 +854,7 @@ func (q *Queries) UpdateNativeJob(ctx context.Context, arg UpdateNativeJobParams
 		arg.NiceToHave,
 		arg.Skills,
 		arg.Location,
+		arg.CanonicalCityID,
 		arg.WorkMode,
 		arg.EmploymentType,
 		arg.ExperienceLevel,
@@ -869,6 +921,7 @@ func (q *Queries) UpdateNativeJob(ctx context.Context, arg UpdateNativeJobParams
 		&i.DeletedAt,
 		&i.ModerationStatus,
 		&i.CreatedByUserID,
+		&i.CanonicalCityID,
 	)
 	return i, err
 }
@@ -882,6 +935,7 @@ INSERT INTO jobhub.jobs (
     company_name_raw,
     title,
     location_raw,
+    canonical_city_id,
     description,
     description_kind,
     employment_type_raw,
@@ -907,15 +961,16 @@ INSERT INTO jobhub.jobs (
     $9,
     $10,
     $11,
+    $12,
     'external',
     $3,
     'unknown',
-    $12,
-    $12,
-    $12,
+    $13,
+    $13,
     $13,
     $14,
-    $15
+    $15,
+    $16
 )
 ON CONFLICT (source, external_id) DO UPDATE SET
     source_url = EXCLUDED.source_url,
@@ -923,6 +978,7 @@ ON CONFLICT (source, external_id) DO UPDATE SET
     company_name_raw = EXCLUDED.company_name_raw,
     title = EXCLUDED.title,
     location_raw = EXCLUDED.location_raw,
+    canonical_city_id = EXCLUDED.canonical_city_id,
     description = EXCLUDED.description,
     description_kind = EXCLUDED.description_kind,
     employment_type_raw = EXCLUDED.employment_type_raw,
@@ -946,6 +1002,7 @@ type UpsertImportedJobParams struct {
 	CompanyNameRaw     pgtype.Text
 	Title              string
 	LocationRaw        pgtype.Text
+	CanonicalCityID    pgtype.Text
 	Description        pgtype.Text
 	DescriptionKind    string
 	EmploymentTypeRaw  pgtype.Text
@@ -965,6 +1022,7 @@ func (q *Queries) UpsertImportedJob(ctx context.Context, arg UpsertImportedJobPa
 		arg.CompanyNameRaw,
 		arg.Title,
 		arg.LocationRaw,
+		arg.CanonicalCityID,
 		arg.Description,
 		arg.DescriptionKind,
 		arg.EmploymentTypeRaw,

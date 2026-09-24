@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"jobhub-ai/backend/internal/auth"
 	"jobhub-ai/backend/internal/jobs"
+	"jobhub-ai/backend/internal/locations"
 )
 
 const (
@@ -19,7 +20,6 @@ const (
 	jobCategoryMax    = 120
 	jobDescriptionMax = 20000
 	jobListTextMax    = 12000
-	jobLocationMax    = 300
 	jobSkillMax       = 100
 	jobBenefitMax     = 500
 	jobListItemsMax   = 50
@@ -35,7 +35,7 @@ type nativeJobRequest struct {
 	Requirements      string     `json:"requirements"`
 	NiceToHave        string     `json:"nice_to_have"`
 	Skills            []string   `json:"skills"`
-	Location          string     `json:"location"`
+	CityID            string     `json:"city_id"`
 	WorkMode          string     `json:"work_mode"`
 	EmploymentType    string     `json:"employment_type"`
 	ExperienceLevel   string     `json:"experience_level"`
@@ -156,7 +156,9 @@ func (r nativeJobRequest) input() (jobs.NativeJobInput, map[string]string) {
 	validateText(fields, "responsibilities", r.Responsibilities, 10, jobListTextMax, true)
 	validateText(fields, "requirements", r.Requirements, 10, jobListTextMax, true)
 	validateText(fields, "nice_to_have", r.NiceToHave, 0, jobListTextMax, false)
-	validateText(fields, "location", r.Location, 2, jobLocationMax, true)
+	if !locations.Valid(r.CityID) {
+		fields["city_id"] = "invalid value"
+	}
 	validateText(fields, "work_mode", r.WorkMode, 1, 30, true)
 	validateText(fields, "employment_type", r.EmploymentType, 1, 30, true)
 	validateText(fields, "experience_level", r.ExperienceLevel, 1, 30, true)
@@ -202,7 +204,7 @@ func (r nativeJobRequest) input() (jobs.NativeJobInput, map[string]string) {
 	if r.SalaryVisible != nil {
 		salaryVisible = *r.SalaryVisible
 	}
-	return jobs.NativeJobInput{Title: strings.TrimSpace(r.Title), Category: strings.TrimSpace(r.Category), Description: strings.TrimSpace(r.Description), Responsibilities: strings.TrimSpace(r.Responsibilities), Requirements: strings.TrimSpace(r.Requirements), NiceToHave: strings.TrimSpace(r.NiceToHave), Skills: skills, Location: strings.TrimSpace(r.Location), WorkMode: r.WorkMode, EmploymentType: r.EmploymentType, ExperienceLevel: r.ExperienceLevel, SalaryMin: r.SalaryMin, SalaryMax: r.SalaryMax, SalaryCurrency: strings.ToUpper(strings.TrimSpace(r.SalaryCurrency)), SalaryPeriod: strings.TrimSpace(r.SalaryPeriod), SalaryVisible: salaryVisible, Benefits: benefits, ExpiresAt: r.ExpiresAt}, fields
+	return jobs.NativeJobInput{Title: strings.TrimSpace(r.Title), Category: strings.TrimSpace(r.Category), Description: strings.TrimSpace(r.Description), Responsibilities: strings.TrimSpace(r.Responsibilities), Requirements: strings.TrimSpace(r.Requirements), NiceToHave: strings.TrimSpace(r.NiceToHave), Skills: skills, CanonicalCityID: r.CityID, WorkMode: r.WorkMode, EmploymentType: r.EmploymentType, ExperienceLevel: r.ExperienceLevel, SalaryMin: r.SalaryMin, SalaryMax: r.SalaryMax, SalaryCurrency: strings.ToUpper(strings.TrimSpace(r.SalaryCurrency)), SalaryPeriod: strings.TrimSpace(r.SalaryPeriod), SalaryVisible: salaryVisible, Benefits: benefits, ExpiresAt: r.ExpiresAt}, fields
 }
 
 func currentUser(c *gin.Context) auth.User { return c.MustGet("session").(auth.Session).User }

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"jobhub-ai/backend/internal/jobs"
+	"jobhub-ai/backend/internal/locations"
 )
 
 const Source = "jooble:kz"
@@ -168,6 +169,7 @@ func Normalize(vacancy Vacancy) (jobs.ImportedJob, error) {
 		Source: Source, ExternalID: string(vacancy.ID), SourceURL: link,
 		UpstreamSourceName: cleanText(vacancy.Source), CompanyNameRaw: cleanText(vacancy.Company),
 		Title: title, LocationRaw: cleanText(vacancy.Location), Description: cleanText(vacancy.Snippet),
+		CanonicalCityID: locations.Normalize(vacancy.Location),
 		DescriptionKind: "snippet", EmploymentTypeRaw: cleanText(vacancy.Type), SalaryRaw: cleanText(vacancy.Salary),
 		ExternalUpdatedAt: updatedAt, ExternalUpdatedRaw: updatedRaw,
 	}, nil

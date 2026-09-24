@@ -19,10 +19,10 @@ func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore { return &PostgresStore
 func (s *PostgresStore) GetProfile(ctx context.Context, userID string) (Profile, error) {
 	const query = `
 		SELECT u.id::text, u.full_name,
-		       COALESCE(p.photo_url, ''), COALESCE(p.city, ''), p.birth_year, COALESCE(p.birth_date::text, ''), COALESCE(p.phone, ''), COALESCE(p.about, ''),
+		       COALESCE(p.photo_url, ''), COALESCE(p.city, ''), COALESCE(p.canonical_city_id, ''), p.birth_year, COALESCE(p.birth_date::text, ''), COALESCE(p.phone, ''), COALESCE(p.about, ''),
 		       COALESCE(p.current_position, ''), COALESCE(p.desired_position, ''), p.years_experience::double precision,
 		       COALESCE(p.experience_level, ''), COALESCE(p.certifications, '{}'), p.desired_salary::double precision,
-		       COALESCE(p.currency, ''), COALESCE(p.salary_period, ''), COALESCE(p.preferred_locations, '{}'),
+		       COALESCE(p.currency, ''), COALESCE(p.salary_period, ''), COALESCE(p.preferred_locations, '{}'), COALESCE(p.preferred_city_ids, '{}'),
 		       COALESCE(p.preferred_employment_types, '{}'), COALESCE(p.preferred_work_modes, '{}'),
 		       COALESCE(p.preferred_categories, '{}'), COALESCE(p.preferred_roles, '{}'),
 		       COALESCE(p.search_status, 'actively_looking'), COALESCE(p.github_url, ''), COALESCE(p.linkedin_url, ''),
@@ -33,9 +33,9 @@ func (s *PostgresStore) GetProfile(ctx context.Context, userID string) (Profile,
 		WHERE u.id = $1::uuid AND u.role = 'job_seeker'`
 	var p Profile
 	err := s.pool.QueryRow(ctx, query, userID).Scan(
-		&p.UserID, &p.FullName, &p.PhotoURL, &p.City, &p.BirthYear, &p.BirthDate, &p.Phone, &p.About,
+		&p.UserID, &p.FullName, &p.PhotoURL, &p.City, &p.CityID, &p.BirthYear, &p.BirthDate, &p.Phone, &p.About,
 		&p.CurrentPosition, &p.DesiredPosition, &p.YearsExperience, &p.ExperienceLevel, &p.Certifications,
-		&p.DesiredSalary, &p.Currency, &p.SalaryPeriod, &p.PreferredLocations, &p.PreferredEmploymentTypes,
+		&p.DesiredSalary, &p.Currency, &p.SalaryPeriod, &p.PreferredLocations, &p.PreferredCityIDs, &p.PreferredEmploymentTypes,
 		&p.PreferredWorkModes, &p.PreferredCategories, &p.PreferredRoles, &p.SearchStatus, &p.GitHub,
 		&p.LinkedIn, &p.Portfolio, &p.Website, &p.AllowEmployerContact, &p.ShowProfileToEmployers,
 		&p.ShowSalaryExpectations,
@@ -100,27 +100,27 @@ func (s *PostgresStore) UpdateProfile(ctx context.Context, userID string, p Prof
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO jobhub.candidate_profiles (
-			user_id, photo_url, city, birth_year, birth_date, phone, about, current_position, desired_position,
+			user_id, photo_url, city, canonical_city_id, birth_year, birth_date, phone, about, current_position, desired_position,
 			years_experience, experience_level, certifications, desired_salary, currency, salary_period,
-			preferred_locations, preferred_employment_types, preferred_work_modes, preferred_categories,
+			preferred_locations, preferred_city_ids, preferred_employment_types, preferred_work_modes, preferred_categories,
 			preferred_roles, search_status, github_url, linkedin_url, portfolio_url, website_url,
 			allow_employer_contact, show_profile_to_employers, show_salary_expectations
-		) VALUES ($1::uuid,$2,$3,$4,$5::date,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+		) VALUES ($1::uuid,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
 		ON CONFLICT (user_id) DO UPDATE SET
-			photo_url=EXCLUDED.photo_url, city=EXCLUDED.city, birth_year=EXCLUDED.birth_year, birth_date=EXCLUDED.birth_date, phone=EXCLUDED.phone,
+			photo_url=EXCLUDED.photo_url, city=EXCLUDED.city, canonical_city_id=EXCLUDED.canonical_city_id, birth_year=EXCLUDED.birth_year, birth_date=EXCLUDED.birth_date, phone=EXCLUDED.phone,
 			about=EXCLUDED.about, current_position=EXCLUDED.current_position, desired_position=EXCLUDED.desired_position,
 			years_experience=EXCLUDED.years_experience, experience_level=EXCLUDED.experience_level,
 			certifications=EXCLUDED.certifications, desired_salary=EXCLUDED.desired_salary, currency=EXCLUDED.currency,
-			salary_period=EXCLUDED.salary_period, preferred_locations=EXCLUDED.preferred_locations,
+			salary_period=EXCLUDED.salary_period, preferred_locations=EXCLUDED.preferred_locations, preferred_city_ids=EXCLUDED.preferred_city_ids,
 			preferred_employment_types=EXCLUDED.preferred_employment_types, preferred_work_modes=EXCLUDED.preferred_work_modes,
 			preferred_categories=EXCLUDED.preferred_categories, preferred_roles=EXCLUDED.preferred_roles,
 			search_status=EXCLUDED.search_status, github_url=EXCLUDED.github_url, linkedin_url=EXCLUDED.linkedin_url,
 			portfolio_url=EXCLUDED.portfolio_url, website_url=EXCLUDED.website_url,
 			allow_employer_contact=EXCLUDED.allow_employer_contact, show_profile_to_employers=EXCLUDED.show_profile_to_employers,
 			show_salary_expectations=EXCLUDED.show_salary_expectations, updated_at=now()`,
-		userID, nilIfBlank(p.PhotoURL), nilIfBlank(p.City), p.BirthYear, nilIfBlank(p.BirthDate), nilIfBlank(p.Phone), nilIfBlank(p.About),
+		userID, nilIfBlank(p.PhotoURL), nilIfBlank(p.City), nilIfBlank(p.CityID), p.BirthYear, nilIfBlank(p.BirthDate), nilIfBlank(p.Phone), nilIfBlank(p.About),
 		nilIfBlank(p.CurrentPosition), nilIfBlank(p.DesiredPosition), p.YearsExperience, nilIfBlank(p.ExperienceLevel),
-		p.Certifications, p.DesiredSalary, nilIfBlank(p.Currency), nilIfBlank(p.SalaryPeriod), p.PreferredLocations,
+		p.Certifications, p.DesiredSalary, nilIfBlank(p.Currency), nilIfBlank(p.SalaryPeriod), p.PreferredLocations, p.PreferredCityIDs,
 		p.PreferredEmploymentTypes, p.PreferredWorkModes, p.PreferredCategories, p.PreferredRoles, p.SearchStatus,
 		nilIfBlank(p.GitHub), nilIfBlank(p.LinkedIn), nilIfBlank(p.Portfolio), nilIfBlank(p.Website),
 		p.AllowEmployerContact, p.ShowProfileToEmployers, p.ShowSalaryExpectations,

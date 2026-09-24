@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"jobhub-ai/backend/internal/database/dbgen"
+	"jobhub-ai/backend/internal/locations"
 )
 
 type PostgresStore struct {
@@ -69,6 +70,7 @@ func (s *PostgresStore) CompleteIngestionRun(ctx context.Context, runID, source 
 			Source: source, ExternalID: nullableText(item.ExternalID), SourceUrl: nullableText(item.SourceURL),
 			UpstreamSourceName: nullableText(item.UpstreamSourceName), CompanyNameRaw: nullableText(item.CompanyNameRaw),
 			Title: item.Title, LocationRaw: nullableText(item.LocationRaw), Description: nullableText(item.Description),
+			CanonicalCityID: nullableText(item.CanonicalCityID),
 			DescriptionKind: item.DescriptionKind, EmploymentTypeRaw: nullableText(item.EmploymentTypeRaw),
 			SalaryRaw: nullableText(item.SalaryRaw), ObservedAt: timestamptz(observedAt), FreshUntil: timestamptz(freshUntil),
 			ExternalUpdatedAt: nullableTime(item.ExternalUpdatedAt), ExternalUpdatedRaw: nullableText(item.ExternalUpdatedRaw),
@@ -101,13 +103,18 @@ func (s *PostgresStore) CompleteIngestionRun(ctx context.Context, runID, source 
 
 func (s *PostgresStore) Search(ctx context.Context, params SearchParams) (SearchResult, error) {
 	query := nullableText(strings.TrimSpace(params.Query))
-	location := nullableText(strings.TrimSpace(params.Location))
-	total, err := s.queries.CountPublicJobs(ctx, dbgen.CountPublicJobsParams{Query: query, Location: location, RequireProductionPermissions: s.requireProductionPermissions})
+	filters := dbgen.CountPublicJobsParams{RequireProductionPermissions: s.requireProductionPermissions, Query: query,
+		City: nullableText(params.City), WorkModes: params.WorkModes, SalaryMin: nullableNumeric(params.SalaryMin),
+		Currency: nullableText(params.Currency), ExperienceLevel: nullableText(params.ExperienceLevel),
+		EmploymentType: nullableText(params.EmploymentType), PostedAfter: nullableTime(params.PostedAfter)}
+	total, err := s.queries.CountPublicJobs(ctx, filters)
 	if err != nil {
 		return SearchResult{}, fmt.Errorf("count jobs: %w", err)
 	}
 	rows, err := s.queries.ListPublicJobs(ctx, dbgen.ListPublicJobsParams{
-		Query: query, Location: location, RequireProductionPermissions: s.requireProductionPermissions,
+		Query: filters.Query, City: filters.City, WorkModes: filters.WorkModes, SalaryMin: filters.SalaryMin,
+		Currency: filters.Currency, ExperienceLevel: filters.ExperienceLevel, EmploymentType: filters.EmploymentType,
+		PostedAfter: filters.PostedAfter, PreferredCity: nullableText(params.PreferredCity), RequireProductionPermissions: s.requireProductionPermissions,
 		Sort: params.Sort, PageOffset: int32((params.Page - 1) * params.PageSize), PageSize: int32(params.PageSize),
 	})
 	if err != nil {
@@ -168,10 +175,10 @@ func (s *PostgresStore) CreateForEmployer(ctx context.Context, rawUserID string,
 	row, err := s.queries.CreateNativeJob(ctx, dbgen.CreateNativeJobParams{
 		UserID: userID, Title: input.Title, Category: nullableText(input.Category), Description: nullableText(input.Description),
 		Responsibilities: nullableText(input.Responsibilities), Requirements: nullableText(input.Requirements), NiceToHave: nullableText(input.NiceToHave),
-		Skills: input.Skills, Location: nullableText(input.Location), WorkMode: nullableText(input.WorkMode), EmploymentType: nullableText(input.EmploymentType),
+		Skills: input.Skills, Location: nullableText(locations.Name(input.CanonicalCityID, "en")), WorkMode: nullableText(input.WorkMode), EmploymentType: nullableText(input.EmploymentType),
 		ExperienceLevel: nullableText(input.ExperienceLevel), SalaryMin: nullableNumeric(input.SalaryMin), SalaryMax: nullableNumeric(input.SalaryMax),
 		SalaryCurrency: nullableText(input.SalaryCurrency), SalaryPeriod: nullableText(input.SalaryPeriod), SalaryVisible: input.SalaryVisible,
-		Benefits: input.Benefits, ExpiresAt: nullableTime(input.ExpiresAt),
+		Benefits: input.Benefits, ExpiresAt: nullableTime(input.ExpiresAt), CanonicalCityID: nullableText(input.CanonicalCityID),
 	})
 	return mapOwnedRow(row, err, "create employer job")
 }
@@ -183,11 +190,11 @@ func (s *PostgresStore) UpdateForEmployer(ctx context.Context, rawUserID, rawID 
 	}
 	row, err := s.queries.UpdateNativeJob(ctx, dbgen.UpdateNativeJobParams{
 		Title: input.Title, Category: nullableText(input.Category), Description: nullableText(input.Description), Responsibilities: nullableText(input.Responsibilities),
-		Requirements: nullableText(input.Requirements), NiceToHave: nullableText(input.NiceToHave), Skills: input.Skills, Location: nullableText(input.Location),
+		Requirements: nullableText(input.Requirements), NiceToHave: nullableText(input.NiceToHave), Skills: input.Skills, Location: nullableText(locations.Name(input.CanonicalCityID, "en")),
 		WorkMode: nullableText(input.WorkMode), EmploymentType: nullableText(input.EmploymentType), ExperienceLevel: nullableText(input.ExperienceLevel),
 		SalaryMin: nullableNumeric(input.SalaryMin), SalaryMax: nullableNumeric(input.SalaryMax), SalaryCurrency: nullableText(input.SalaryCurrency),
 		SalaryPeriod: nullableText(input.SalaryPeriod), SalaryVisible: input.SalaryVisible, Benefits: input.Benefits, ExpiresAt: nullableTime(input.ExpiresAt),
-		ID: id, UserID: userID,
+		ID: id, UserID: userID, CanonicalCityID: nullableText(input.CanonicalCityID),
 	})
 	return mapOwnedRow(row, err, "update employer job")
 }
@@ -237,7 +244,7 @@ func mapRow(row dbgen.JobhubJob) Job {
 		ID: formatUUID(row.ID), Source: row.Source, SourceName: sourceName(row.Source),
 		ExternalID: textValue(row.ExternalID), SourceURL: textValue(row.SourceUrl),
 		UpstreamSourceName: textValue(row.UpstreamSourceName), CompanyName: textValue(row.CompanyNameRaw),
-		CompanyID: formatUUID(row.CompanyID), Title: row.Title, Category: textValue(row.Category), Location: textValue(row.LocationRaw), Description: textValue(row.Description),
+		CompanyID: formatUUID(row.CompanyID), Title: row.Title, Category: textValue(row.Category), Location: textValue(row.LocationRaw), CanonicalCityID: textValue(row.CanonicalCityID), Description: textValue(row.Description),
 		Responsibilities: textValue(row.Responsibilities), Requirements: textValue(row.Requirements), NiceToHave: textValue(row.NiceToHave),
 		Skills: row.Skills, WorkMode: textValue(row.WorkMode), ExperienceLevel: textValue(row.ExperienceLevel),
 		DescriptionKind: row.DescriptionKind, EmploymentType: textValue(row.EmploymentTypeRaw),

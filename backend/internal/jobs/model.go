@@ -17,6 +17,7 @@ type ImportedJob struct {
 	CompanyNameRaw     string
 	Title              string
 	LocationRaw        string
+	CanonicalCityID    string
 	Description        string
 	DescriptionKind    string
 	EmploymentTypeRaw  string
@@ -37,6 +38,7 @@ type Job struct {
 	Title               string
 	Category            string
 	Location            string
+	CanonicalCityID     string
 	Description         string
 	Responsibilities    string
 	Requirements        string
@@ -77,7 +79,7 @@ type NativeJobInput struct {
 	Requirements     string
 	NiceToHave       string
 	Skills           []string
-	Location         string
+	CanonicalCityID  string
 	WorkMode         string
 	EmploymentType   string
 	ExperienceLevel  string
@@ -91,11 +93,18 @@ type NativeJobInput struct {
 }
 
 type SearchParams struct {
-	Query    string
-	Location string
-	Sort     string
-	Page     int
-	PageSize int
+	Query           string
+	City            string
+	PreferredCity   string
+	WorkModes       []string
+	SalaryMin       *float64
+	Currency        string
+	ExperienceLevel string
+	EmploymentType  string
+	PostedAfter     *time.Time
+	Sort            string
+	Page            int
+	PageSize        int
 }
 
 type SearchResult struct {

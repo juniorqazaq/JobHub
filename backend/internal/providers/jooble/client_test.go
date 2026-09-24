@@ -36,7 +36,7 @@ func TestClientFetchesAndNormalizesVacancyWithoutLoggingKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if job.ExternalID != "987654321" || job.Title != "Go Developer" || job.ExternalUpdatedAt == nil {
+	if job.ExternalID != "987654321" || job.Title != "Go Developer" || job.ExternalUpdatedAt == nil || job.LocationRaw != "Алматы" || job.CanonicalCityID != "almaty" {
 		t.Fatalf("unexpected normalized job: %#v", job)
 	}
 	if strings.Contains(logs.String(), secret) {
@@ -44,6 +44,16 @@ func TestClientFetchesAndNormalizesVacancyWithoutLoggingKey(t *testing.T) {
 	}
 	if _, err := client.Search(context.Background(), Search{}); err == nil || !strings.Contains(err.Error(), "budget") {
 		t.Fatal("expected strict request budget")
+	}
+}
+
+func TestNormalizeDoesNotGuessAmbiguousProviderLocation(t *testing.T) {
+	job, err := Normalize(Vacancy{ID: "3", Title: "Developer", Location: "Алматы, Астана", Link: "https://kz.jooble.org/jdp/3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.LocationRaw != "Алматы, Астана" || job.CanonicalCityID != "" {
+		t.Fatalf("ambiguous provider location was mislabeled: %#v", job)
 	}
 }
 

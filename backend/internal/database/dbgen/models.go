@@ -71,6 +71,12 @@ type JobhubCandidateProfile struct {
 	ShowSalaryExpectations   bool
 	CreatedAt                pgtype.Timestamptz
 	UpdatedAt                pgtype.Timestamptz
+	// Optional private full birth date. Legacy birth_year remains unchanged until the candidate explicitly supplies a date.
+	BirthDate pgtype.Date
+	// Canonical professional profile city, separate from search preference.
+	CanonicalCityID pgtype.Text
+	// Canonical preferred job-search cities.
+	PreferredCityIds []string
 }
 
 type JobhubCandidateSkill struct {
@@ -192,6 +198,8 @@ type JobhubJob struct {
 	DeletedAt           pgtype.Timestamptz
 	ModerationStatus    string
 	CreatedByUserID     pgtype.UUID
+	// Canonical Kazakhstan city identifier; provider location_raw remains unchanged.
+	CanonicalCityID pgtype.Text
 }
 
 type JobhubJobSource struct {

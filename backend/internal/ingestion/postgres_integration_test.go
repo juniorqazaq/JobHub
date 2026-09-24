@@ -63,6 +63,17 @@ func TestPostgresImportIsAtomicAndIdempotent(t *testing.T) {
 		t.Fatalf("stored job unavailable: %#v %v", firstResult, err)
 	}
 	firstJob := firstResult.Items[0]
+	if firstJob.CanonicalCityID != "almaty" || firstJob.Location != "Алматы" {
+		t.Fatalf("location normalization changed raw data or missed canonical city: %#v", firstJob)
+	}
+	cityResult, err := store.Search(ctx, jobs.SearchParams{Query: externalID, City: "almaty", Page: 1, PageSize: 10})
+	if err != nil || cityResult.Total != int64(len(cityResult.Items)) || cityResult.Total != 1 {
+		t.Fatalf("city-filter count/list mismatch: %#v %v", cityResult, err)
+	}
+	otherCityResult, err := store.Search(ctx, jobs.SearchParams{Query: externalID, City: "astana", Page: 1, PageSize: 10})
+	if err != nil || otherCityResult.Total != 0 || len(otherCityResult.Items) != 0 {
+		t.Fatalf("city filter returned a different city: %#v %v", otherCityResult, err)
+	}
 	productionStore := jobs.NewPostgresStore(pool, true)
 	productionResult, err := productionStore.Search(ctx, jobs.SearchParams{Query: externalID, Page: 1, PageSize: 10})
 	if err != nil || productionResult.Total != 0 {

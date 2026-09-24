@@ -17,6 +17,21 @@ type jobReaderStub struct{ item jobs.Job }
 func (s jobReaderStub) Search(context.Context, jobs.SearchParams) (jobs.SearchResult, error) {
 	return jobs.SearchResult{Items: []jobs.Job{s.item}, Total: 1}, nil
 }
+
+type capturingJobReader struct {
+	params jobs.SearchParams
+	calls  int
+}
+
+func (s *capturingJobReader) Search(_ context.Context, params jobs.SearchParams) (jobs.SearchResult, error) {
+	s.params = params
+	s.calls++
+	return jobs.SearchResult{}, nil
+}
+
+func (s *capturingJobReader) Get(context.Context, string) (jobs.Job, error) {
+	return jobs.Job{}, jobs.ErrNotFound
+}
 func (s jobReaderStub) Get(_ context.Context, id string) (jobs.Job, error) {
 	if id != s.item.ID {
 		return jobs.Job{}, jobs.ErrNotFound
@@ -51,6 +66,46 @@ func TestListJobsRejectsUnsupportedSort(t *testing.T) {
 	router.ServeHTTP(res, httptest.NewRequest("GET", "/api/v1/jobs?sort=salary", nil))
 	if res.Code != 400 || !strings.Contains(res.Body.String(), `"code":"VALIDATION_ERROR"`) {
 		t.Fatalf("unexpected response: %d %s", res.Code, res.Body.String())
+	}
+}
+
+func TestListJobsRejectsInvalidFiltersBeforeQueryingStore(t *testing.T) {
+	tests := []string{
+		"city=unknown",
+		"preferred_city=unknown",
+		"work_mode=remote,teleport",
+		"salary_min=-1&currency=KZT",
+		"salary_min=100&currency=GBP",
+		"currency=KZT",
+		"experience=principal",
+		"employment=freelance",
+		"date_posted=forever",
+	}
+	for _, query := range tests {
+		t.Run(query, func(t *testing.T) {
+			reader := &capturingJobReader{}
+			router := NewRouter(checker{}, slog.New(slog.NewTextHandler(io.Discard, nil)), "http://localhost:5173", reader)
+			res := httptest.NewRecorder()
+			router.ServeHTTP(res, httptest.NewRequest("GET", "/api/v1/jobs?"+query, nil))
+			if res.Code != 400 || reader.calls != 0 {
+				t.Fatalf("expected validation rejection before store call, got %d with %d calls: %s", res.Code, reader.calls, res.Body.String())
+			}
+		})
+	}
+}
+
+func TestListJobsPassesCanonicalCombinedFiltersAndOpaqueQuery(t *testing.T) {
+	reader := &capturingJobReader{}
+	router := NewRouter(checker{}, slog.New(slog.NewTextHandler(io.Discard, nil)), "http://localhost:5173", reader)
+	res := httptest.NewRecorder()
+	path := "/api/v1/jobs?q=%27%3BDELETE+FROM+jobs%3B--&city=almaty&preferred_city=astana&work_mode=remote%2Chybrid&salary_min=500000&currency=kzt&experience=middle&employment=full_time&date_posted=7d&sort=oldest&page=2&page_size=25"
+	router.ServeHTTP(res, httptest.NewRequest("GET", path, nil))
+	if res.Code != 200 || reader.calls != 1 {
+		t.Fatalf("unexpected response: %d %s", res.Code, res.Body.String())
+	}
+	p := reader.params
+	if p.Query != "';DELETE FROM jobs;--" || p.City != "almaty" || p.PreferredCity != "astana" || len(p.WorkModes) != 2 || p.SalaryMin == nil || *p.SalaryMin != 500000 || p.Currency != "KZT" || p.ExperienceLevel != "middle" || p.EmploymentType != "full_time" || p.PostedAfter == nil || p.Sort != "oldest" || p.Page != 2 || p.PageSize != 25 {
+		t.Fatalf("filters were not preserved: %#v", p)
 	}
 }
 

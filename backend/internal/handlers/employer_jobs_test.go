@@ -107,7 +107,7 @@ func TestNativeJobValidationPreservesStructuredSkillsAndLongPlainText(t *testing
 		Description:      strings.Repeat("Ұ", 200) + "\n<script>alert(1)</script>",
 		Responsibilities: "Build APIs\nReview code", Requirements: "Production Go experience",
 		Skills: []string{" Go ", "Rust", "React Native"}, Benefits: []string{" Learning budget "},
-		Location: "Алматы", WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
+		CityID: "almaty", WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
 		SalaryMin: &minimum, SalaryMax: &maximum, SalaryCurrency: "usd", SalaryPeriod: "month",
 	}
 	input, fields := request.input()
@@ -127,7 +127,7 @@ func TestNativeJobValidationRejectsMalformedContentAndSalary(t *testing.T) {
 	request := nativeJobRequest{
 		Title: strings.Repeat("x", jobTitleMax+1), Category: "Engineering", Description: "A sufficiently detailed description",
 		Responsibilities: "Develop APIs", Requirements: "Go experience", Skills: []string{"Go", "   "},
-		Location: "Almaty", WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
+		CityID: "almaty", WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
 		SalaryMin: &negative, SalaryMax: &smaller, SalaryCurrency: "US", SalaryPeriod: "week",
 	}
 	_, fields := request.input()
@@ -142,7 +142,7 @@ func TestNativeJobValidationRejectsInvertedSalaryRange(t *testing.T) {
 	minimum, maximum := 300000.0, 100000.0
 	request := nativeJobRequest{
 		Title: "Backend Developer", Category: "Engineering", Description: "A sufficiently detailed description",
-		Responsibilities: "Develop APIs", Requirements: "Go experience", Location: "Almaty",
+		Responsibilities: "Develop APIs", Requirements: "Go experience", CityID: "almaty",
 		WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
 		SalaryMin: &minimum, SalaryMax: &maximum, SalaryCurrency: "KZT", SalaryPeriod: "month",
 	}
@@ -169,7 +169,7 @@ func performEmployerMutation(router http.Handler, method, path, body string) *ht
 }
 
 func validNativeJobBody() string {
-	return `{"title":"Backend Developer","category":"Engineering","description":"Build reliable services","responsibilities":"Develop APIs","requirements":"Go experience","location":"Almaty","work_mode":"hybrid","employment_type":"full_time","experience_level":"middle","salary_visible":true}`
+	return `{"title":"Backend Developer","category":"Engineering","description":"Build reliable services","responsibilities":"Develop APIs","requirements":"Go experience","city_id":"almaty","work_mode":"hybrid","employment_type":"full_time","experience_level":"middle","salary_visible":true}`
 }
 
 var _ jobs.EmployerStore = (*employerStoreStub)(nil)

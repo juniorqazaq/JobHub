@@ -124,6 +124,28 @@ func TestValidateProfileAcceptsLeapDay(t *testing.T) {
 	}
 }
 
+func TestValidateProfileStoresCanonicalCitiesAndPreservesUnknownLegacyLocation(t *testing.T) {
+	profile, fields := validateProfile(profileRequest{
+		FullName: "Candidate", SearchStatus: "actively_looking", City: "old value", CityID: "almaty",
+		PreferredLocations: []string{"Remote across Kazakhstan", "Astana"}, PreferredCityIDs: []string{"astana", "shymkent"},
+	})
+	if len(fields) != 0 {
+		t.Fatalf("unexpected validation fields: %#v", fields)
+	}
+	if profile.City != "Almaty" || profile.CityID != "almaty" || len(profile.PreferredLocations) != 3 || profile.PreferredLocations[0] != "Remote across Kazakhstan" || profile.PreferredLocations[1] != "Astana" || profile.PreferredLocations[2] != "Shymkent" {
+		t.Fatalf("canonical or legacy locations were not preserved: %#v", profile)
+	}
+}
+
+func TestValidateProfileRejectsInvalidOrDuplicateCanonicalCities(t *testing.T) {
+	_, fields := validateProfile(profileRequest{
+		FullName: "Candidate", SearchStatus: "actively_looking", CityID: "unknown", PreferredCityIDs: []string{"astana", "astana"},
+	})
+	if fields["city_id"] == "" || fields["preferred_city_ids"] == "" {
+		t.Fatalf("expected canonical city validation errors, got %#v", fields)
+	}
+}
+
 func candidateRouter(role string, storeErr error) (http.Handler, *candidateStoreStub) {
 	store := &candidateStoreStub{err: storeErr}
 	service := candidates.NewService(store, candidateFilesStub{})
