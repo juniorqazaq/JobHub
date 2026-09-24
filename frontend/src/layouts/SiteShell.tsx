@@ -25,8 +25,20 @@ export function SiteShell({ children }: PropsWithChildren) {
       <header className="site-header">
         <div className="page-container site-header__inner">
           <Link className="brand" to="/" aria-label={t("nav.homeLabel")}>
-            <span>Job</span>
-            <strong>Hub</strong>
+            <img
+              className="brand__logo"
+              src="/brand/jobhub-logo.png"
+              width="600"
+              height="187"
+              alt=""
+            />
+            <img
+              className="brand__mark"
+              src="/brand/jobhub-mark-48.png"
+              width="48"
+              height="48"
+              alt=""
+            />
           </Link>
           <nav className="site-nav" aria-label={t("nav.primaryLabel")}>
             <NavLink to="/jobs">{t("nav.jobs")}</NavLink>
@@ -101,8 +113,13 @@ export function SiteShell({ children }: PropsWithChildren) {
             to="/"
             aria-label={t("nav.homeLabel")}
           >
-            <span>Job</span>
-            <strong>Hub</strong>
+            <img
+              className="brand__logo"
+              src="/brand/jobhub-logo.png"
+              width="600"
+              height="187"
+              alt=""
+            />
           </Link>
           <nav aria-label={t("footer.label")}>
             <Link to="/jobs">{t("nav.jobs")}</Link>

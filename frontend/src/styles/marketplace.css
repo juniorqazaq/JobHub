@@ -36,17 +36,13 @@
 
 .brand {
   display: inline-flex;
-  align-items: baseline;
-  color: var(--color-text-primary);
-  font-family: var(--font-display);
-  font-size: var(--text-24);
-  font-weight: 850;
-  letter-spacing: -0.055em;
+  align-items: center;
   text-decoration: none;
 }
 
-.brand strong { color: var(--color-primary); font: inherit; }
-.brand--small { font-size: var(--text-20); }
+.brand__logo { width: 7.5rem; height: auto; object-fit: contain; }
+.brand__mark { display: none; width: 2.25rem; height: 2.25rem; object-fit: contain; }
+.brand--small .brand__logo { width: 6.5rem; }
 
 .site-nav,
 .site-header__actions,
@@ -566,7 +562,8 @@
 @media (max-width: 32rem) {
   .page-container,
   .wide-container { width: min(100% - 1.25rem, var(--container-page)); }
-  .brand { font-size: var(--text-20); }
+  .site-header .brand__logo { display: none; }
+  .site-header .brand__mark { display: block; }
   .jobs-page__header { display: grid; }
   .mobile-filter-button { width: 100%; }
   .section-heading > a { white-space: nowrap; }
