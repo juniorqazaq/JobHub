@@ -4,13 +4,28 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"jobhub-ai/backend/internal/auth"
 	"jobhub-ai/backend/internal/jobs"
 )
+
+const (
+	jobTitleMax       = 200
+	jobCategoryMax    = 120
+	jobDescriptionMax = 20000
+	jobListTextMax    = 12000
+	jobLocationMax    = 300
+	jobSkillMax       = 100
+	jobBenefitMax     = 500
+	jobListItemsMax   = 50
+)
+
+var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type nativeJobRequest struct {
 	Title             string     `json:"title"`
@@ -135,12 +150,16 @@ func deleteEmployerJob(store jobs.EmployerStore, logger *slog.Logger) gin.Handle
 
 func (r nativeJobRequest) input() (jobs.NativeJobInput, map[string]string) {
 	fields := map[string]string{}
-	required := map[string]string{"title": r.Title, "category": r.Category, "description": r.Description, "responsibilities": r.Responsibilities, "requirements": r.Requirements, "location": r.Location, "work_mode": r.WorkMode, "employment_type": r.EmploymentType, "experience_level": r.ExperienceLevel}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			fields[field] = "required"
-		}
-	}
+	validateText(fields, "title", r.Title, 2, jobTitleMax, true)
+	validateText(fields, "category", r.Category, 2, jobCategoryMax, true)
+	validateText(fields, "description", r.Description, 20, jobDescriptionMax, true)
+	validateText(fields, "responsibilities", r.Responsibilities, 10, jobListTextMax, true)
+	validateText(fields, "requirements", r.Requirements, 10, jobListTextMax, true)
+	validateText(fields, "nice_to_have", r.NiceToHave, 0, jobListTextMax, false)
+	validateText(fields, "location", r.Location, 2, jobLocationMax, true)
+	validateText(fields, "work_mode", r.WorkMode, 1, 30, true)
+	validateText(fields, "employment_type", r.EmploymentType, 1, 30, true)
+	validateText(fields, "experience_level", r.ExperienceLevel, 1, 30, true)
 	if !oneOf(r.WorkMode, "on_site", "hybrid", "remote") {
 		fields["work_mode"] = "invalid value"
 	}
@@ -159,17 +178,51 @@ func (r nativeJobRequest) input() (jobs.NativeJobInput, map[string]string) {
 	if r.SalaryMin != nil && r.SalaryMax != nil && *r.SalaryMax < *r.SalaryMin {
 		fields["salary_max"] = "must be greater than or equal to salary_min"
 	}
+	if r.SalaryMin != nil || r.SalaryMax != nil {
+		currency := strings.ToUpper(strings.TrimSpace(r.SalaryCurrency))
+		if !currencyCodePattern.MatchString(currency) {
+			fields["salary_currency"] = "must be a three-letter currency code"
+		}
+		if !oneOf(r.SalaryPeriod, "month", "year") {
+			fields["salary_period"] = "invalid value"
+		}
+	}
 	if r.ExpiresAt != nil && !r.ExpiresAt.After(time.Now()) {
 		fields["expires_at"] = "must be in the future"
+	}
+	skills, skillError := cleanVacancyList(r.Skills, jobListItemsMax, jobSkillMax)
+	if skillError != "" {
+		fields["skills"] = skillError
+	}
+	benefits, benefitError := cleanVacancyList(r.Benefits, jobListItemsMax, jobBenefitMax)
+	if benefitError != "" {
+		fields["benefits"] = benefitError
 	}
 	salaryVisible := true
 	if r.SalaryVisible != nil {
 		salaryVisible = *r.SalaryVisible
 	}
-	return jobs.NativeJobInput{Title: strings.TrimSpace(r.Title), Category: strings.TrimSpace(r.Category), Description: strings.TrimSpace(r.Description), Responsibilities: strings.TrimSpace(r.Responsibilities), Requirements: strings.TrimSpace(r.Requirements), NiceToHave: strings.TrimSpace(r.NiceToHave), Skills: cleanList(r.Skills), Location: strings.TrimSpace(r.Location), WorkMode: r.WorkMode, EmploymentType: r.EmploymentType, ExperienceLevel: r.ExperienceLevel, SalaryMin: r.SalaryMin, SalaryMax: r.SalaryMax, SalaryCurrency: strings.ToUpper(strings.TrimSpace(r.SalaryCurrency)), SalaryPeriod: strings.TrimSpace(r.SalaryPeriod), SalaryVisible: salaryVisible, Benefits: cleanList(r.Benefits), ExpiresAt: r.ExpiresAt}, fields
+	return jobs.NativeJobInput{Title: strings.TrimSpace(r.Title), Category: strings.TrimSpace(r.Category), Description: strings.TrimSpace(r.Description), Responsibilities: strings.TrimSpace(r.Responsibilities), Requirements: strings.TrimSpace(r.Requirements), NiceToHave: strings.TrimSpace(r.NiceToHave), Skills: skills, Location: strings.TrimSpace(r.Location), WorkMode: r.WorkMode, EmploymentType: r.EmploymentType, ExperienceLevel: r.ExperienceLevel, SalaryMin: r.SalaryMin, SalaryMax: r.SalaryMax, SalaryCurrency: strings.ToUpper(strings.TrimSpace(r.SalaryCurrency)), SalaryPeriod: strings.TrimSpace(r.SalaryPeriod), SalaryVisible: salaryVisible, Benefits: benefits, ExpiresAt: r.ExpiresAt}, fields
 }
 
 func currentUser(c *gin.Context) auth.User { return c.MustGet("session").(auth.Session).User }
+func cleanVacancyList(values []string, maxItems, maxLength int) ([]string, string) {
+	if len(values) > maxItems {
+		return nil, "too many entries"
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return nil, "entries must not be empty"
+		}
+		if utf8.RuneCountInString(trimmed) > maxLength {
+			return nil, "entry is too long"
+		}
+		result = append(result, trimmed)
+	}
+	return result, ""
+}
 func cleanList(values []string) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
@@ -178,6 +231,22 @@ func cleanList(values []string) []string {
 		}
 	}
 	return result
+}
+func validateText(fields map[string]string, field, value string, minLength, maxLength int, required bool) {
+	trimmed := strings.TrimSpace(value)
+	length := utf8.RuneCountInString(trimmed)
+	if required && length == 0 {
+		fields[field] = "required"
+		return
+	}
+	if length == 0 {
+		return
+	}
+	if length < minLength {
+		fields[field] = "too short"
+	} else if length > maxLength {
+		fields[field] = "too long"
+	}
 }
 func oneOf(value string, values ...string) bool {
 	for _, candidate := range values {

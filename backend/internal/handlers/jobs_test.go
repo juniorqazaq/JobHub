@@ -53,3 +53,20 @@ func TestListJobsRejectsUnsupportedSort(t *testing.T) {
 		t.Fatalf("unexpected response: %d %s", res.Code, res.Body.String())
 	}
 }
+
+func TestPublicNativeJobHidesPrivateSalary(t *testing.T) {
+	minimum, maximum := 100000.0, 300000.0
+	now := time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)
+	reader := jobReaderStub{item: jobs.Job{
+		ID: "11111111-1111-4111-8111-111111111111", Source: "jobhub", SourceName: "JobHub",
+		CompanyName: "Example", Title: "Developer", Location: "Almaty", Description: "Build services",
+		DescriptionKind: "full", ApplicationMethod: "internal", FirstSeenAt: now, LastSeenAt: now, LastSyncedAt: now,
+		SalaryMin: &minimum, SalaryMax: &maximum, SalaryCurrency: "USD", SalaryPeriod: "month", SalaryVisible: false,
+	}}
+	router := NewRouter(checker{}, slog.New(slog.NewTextHandler(io.Discard, nil)), "http://localhost:5173", reader)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, httptest.NewRequest("GET", "/api/v1/jobs/11111111-1111-4111-8111-111111111111", nil))
+	if res.Code != 200 || strings.Contains(res.Body.String(), "100000") || strings.Contains(res.Body.String(), `"salary_currency":"USD"`) {
+		t.Fatalf("private salary leaked in public response: %d %s", res.Code, res.Body.String())
+	}
+}

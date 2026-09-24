@@ -19,7 +19,19 @@ export function mapJobDto(dto: JobDto): JobSummary {
     responsibilities: dto.responsibilities,
     requirements: dto.requirements,
     niceToHave: dto.nice_to_have,
-    salary: dto.salary ?? (dto.salary_visible !== false && dto.salary_min != null ? { min: dto.salary_min, max: dto.salary_max, currency: dto.salary_currency === "USD" ? "USD" : "KZT", period: dto.salary_period === "year" ? "year" : "month" } : undefined),
+    salary:
+      dto.salary ??
+      (dto.salary_visible !== false &&
+      dto.salary_min != null &&
+      dto.salary_currency &&
+      (dto.salary_period === "month" || dto.salary_period === "year")
+        ? {
+            min: dto.salary_min,
+            max: dto.salary_max,
+            currency: dto.salary_currency,
+            period: dto.salary_period,
+          }
+        : undefined),
     salaryRaw: dto.salary_raw,
     postedAt: dto.posted_at,
     firstSeenAt: dto.first_seen_at,

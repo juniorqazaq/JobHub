@@ -103,7 +103,7 @@ func ListJobs(reader jobs.Reader, logger *slog.Logger) gin.HandlerFunc {
 		}
 		items := make([]jobDTO, 0, len(result.Items))
 		for _, item := range result.Items {
-			items = append(items, mapJob(item))
+			items = append(items, mapPublicJob(item))
 		}
 		totalPages := 0
 		if result.Total > 0 {
@@ -125,7 +125,7 @@ func GetJob(reader jobs.Reader, logger *slog.Logger) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "JOBS_UNAVAILABLE", "message": "Job is temporarily unavailable"}})
 			return
 		}
-		c.JSON(http.StatusOK, mapJob(job))
+		c.JSON(http.StatusOK, mapPublicJob(job))
 	}
 }
 
@@ -169,6 +169,18 @@ func mapJob(job jobs.Job) jobDTO {
 		Source:      sourceDTO{ID: job.Source, Name: job.SourceName, Type: sourceType(job.Source), URL: job.SourceURL, UpstreamName: job.UpstreamSourceName},
 		Application: applicationDTO{Method: job.ApplicationMethod, CTAURL: job.ApplyURL},
 	}
+}
+
+func mapPublicJob(job jobs.Job) jobDTO {
+	result := mapJob(job)
+	if job.Source == "jobhub" && !job.SalaryVisible {
+		result.SalaryRaw = ""
+		result.SalaryMin = nil
+		result.SalaryMax = nil
+		result.SalaryCurrency = ""
+		result.SalaryPeriod = ""
+	}
+	return result
 }
 
 func sourceType(source string) string {

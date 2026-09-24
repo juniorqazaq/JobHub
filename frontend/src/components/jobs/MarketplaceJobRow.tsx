@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
 import type { JobSummary } from "../../api/models/job";
 import { JobSaveButton } from "./JobSaveButton";
+import { formatSalary } from "../../lib/formatSalary";
 
 export function MarketplaceJobRow({ job }: { job: JobSummary }) {
   const { t, i18n } = useTranslation();
@@ -28,17 +29,13 @@ export function MarketplaceJobRow({ job }: { job: JobSummary }) {
               {job.source.name}
             </span>
             <span>{t("jobs.updated", { date: posted })}</span>
-            {job.salaryRaw || job.salary ? <strong>{job.salaryRaw || formatSalary(job.salary!)}</strong> : null}
+            {job.salaryRaw || job.salary ? <strong>{job.salaryRaw || formatSalary(job.salary!, i18n.language, t(`employer.salaryPeriods.${job.salary!.period}`))}</strong> : null}
           </div>
         </div>
         <ChevronRight className="job-row__arrow" size={20} aria-hidden="true" />
       </Link>
     </article>
   );
-}
-
-function formatSalary(salary: NonNullable<JobSummary["salary"]>) {
-  return `${salary.min.toLocaleString()}${salary.max ? `–${salary.max.toLocaleString()}` : ""} ${salary.currency}`;
 }
 
 function formatDate(value: string, language: string) {

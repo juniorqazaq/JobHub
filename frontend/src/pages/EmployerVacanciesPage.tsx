@@ -10,6 +10,7 @@ import { Button } from "../components/ui/Button";
 import { EmptyState, ErrorState, JobListSkeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
 import { SiteShell } from "../layouts/SiteShell";
+import { formatSalary } from "../lib/formatSalary";
 
 export function EmployerVacanciesPage() {
   const { t, i18n } = useTranslation();
@@ -30,7 +31,7 @@ export function EmployerVacanciesPage() {
     {jobs.data?.length === 0 ? <EmptyState title={t("employer.emptyTitle")} description={t("employer.emptyDescription")} secondary={<Link className="text-link" to="/employer/vacancies/new">{t("employer.createVacancy")}</Link>} /> : null}
     {jobs.data?.length ? <div className="employer-job-list">{jobs.data.map((job) => <article className="employer-job-row" key={job.id}>
       <div className="employer-job-row__main"><div className="employer-job-row__title"><h2>{job.title}</h2><span className={`status-badge status-badge--${job.publicationStatus}`}>{t(`employer.statuses.${job.publicationStatus}`)}</span></div><p>{job.location} · {t(`employer.workModes.${job.workMode}`)}</p><small>{t("employer.updatedAt", { date: formatDate(job.updatedAt || job.postedAt, i18n.language) })}</small></div>
-      <div className="employer-job-row__salary">{formatSalary(job, t("common.notProvided"))}</div>
+      <div className="employer-job-row__salary">{job.salary ? formatSalary(job.salary, i18n.language, t(`employer.salaryPeriods.${job.salary.period}`)) : t("common.notProvided")}</div>
       <div className="employer-job-row__actions">
         {job.publicationStatus === "published" ? <Link className="ui-button ui-button--quiet ui-button--sm" to={`/jobs/${job.id}`}><ExternalLink size={15} aria-hidden="true" /><span>{t("employer.view")}</span></Link> : null}
         <Link className="ui-button ui-button--quiet ui-button--sm" to={`/employer/vacancies/${job.id}/applicants`}><Users size={15} aria-hidden="true" /><span>{t("employer.applicants")}</span></Link>
@@ -45,4 +46,3 @@ export function EmployerVacanciesPage() {
 }
 
 function formatDate(value: string, language: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(date); }
-function formatSalary(job: { salary?: { min: number; max?: number; currency: string; period: string } }, fallback: string) { if (!job.salary) return fallback; return `${job.salary.min.toLocaleString()}${job.salary.max ? `–${job.salary.max.toLocaleString()}` : ""} ${job.salary.currency}`; }

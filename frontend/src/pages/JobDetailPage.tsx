@@ -7,6 +7,7 @@ import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { SiteShell } from "../layouts/SiteShell";
 import { JobSaveButton } from "../components/jobs/JobSaveButton";
 import { ApplyAction } from "../components/jobs/ApplyAction";
+import { formatSalary } from "../lib/formatSalary";
 
 interface DetailLocationState { from?: string }
 
@@ -30,7 +31,7 @@ export function JobDetailPage() {
               <p className="detail-company">{job.data.company.name || t("common.notProvided")}</p>
               <div className="detail-facts">
                 <span><MapPin size={19} aria-hidden="true" />{job.data.location || t("common.notProvided")}</span>
-                {job.data.salaryRaw || job.data.salary ? <strong>{job.data.salaryRaw || formatSalary(job.data.salary!)}</strong> : null}
+                {job.data.salaryRaw || job.data.salary ? <strong>{job.data.salaryRaw || formatSalary(job.data.salary!, i18n.language, t(`employer.salaryPeriods.${job.data.salary!.period}`))}</strong> : null}
                 {job.data.employmentType ? <span><BriefcaseBusiness size={19} aria-hidden="true" />{job.data.source.type === "native" ? t(`employer.employmentTypes.${job.data.employmentType}`) : job.data.employmentType}</span> : null}
               </div>
             </header>
@@ -40,9 +41,9 @@ export function JobDetailPage() {
               <p className="detail-description">{job.data.summary || t("jobDetail.noDescription")}</p>
               {job.data.descriptionKind === "snippet" ? <p className="detail-note">{t("jobDetail.snippetNote")}</p> : null}
             </section>
-            {job.data.responsibilities ? <DetailSection title={t("jobDetail.responsibilitiesTitle")} value={job.data.responsibilities} /> : null}
-            {job.data.requirements ? <DetailSection title={t("jobDetail.requirementsTitle")} value={job.data.requirements} /> : null}
-            {job.data.niceToHave ? <DetailSection title={t("jobDetail.niceToHaveTitle")} value={job.data.niceToHave} /> : null}
+            {job.data.responsibilities ? <DetailListSection title={t("jobDetail.responsibilitiesTitle")} value={job.data.responsibilities} /> : null}
+            {job.data.requirements ? <DetailListSection title={t("jobDetail.requirementsTitle")} value={job.data.requirements} /> : null}
+            {job.data.niceToHave ? <DetailListSection title={t("jobDetail.niceToHaveTitle")} value={job.data.niceToHave} /> : null}
             {job.data.tags.length ? <section><h2>{t("jobDetail.skillsTitle")}</h2><ul className="detail-tag-list">{job.data.tags.map((skill) => <li key={skill}>{skill}</li>)}</ul></section> : null}
             {job.data.benefits?.length ? <section><h2>{t("jobDetail.benefitsTitle")}</h2><ul className="detail-list">{job.data.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></section> : null}
           </article>
@@ -68,8 +69,7 @@ export function JobDetailPage() {
   );
 }
 
-function DetailSection({ title, value }: { title: string; value: string }) { return <section><h2>{title}</h2><p className="detail-description">{value}</p></section>; }
-function formatSalary(salary: { min: number; max?: number; currency: string }) { return `${salary.min.toLocaleString()}${salary.max ? `–${salary.max.toLocaleString()}` : ""} ${salary.currency}`; }
+function DetailListSection({ title, value }: { title: string; value: string }) { const items = value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean); return <section><h2>{title}</h2>{items.length > 1 ? <ul className="detail-list">{items.map((item, index) => <li key={`${index}-${item.slice(0, 24)}`}>{item}</li>)}</ul> : <p className="detail-description">{value}</p>}</section>; }
 
 function DetailSkeleton({ label }: { label: string }) {
   return <div className="detail-skeleton" role="status"><span className="visually-hidden">{label}</span><Skeleton className="detail-skeleton__title" /><Skeleton /><Skeleton /><Skeleton className="detail-skeleton__body" /></div>;

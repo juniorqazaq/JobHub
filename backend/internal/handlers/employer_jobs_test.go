@@ -100,6 +100,58 @@ func TestEmployerMutationRequiresCSRF(t *testing.T) {
 	}
 }
 
+func TestNativeJobValidationPreservesStructuredSkillsAndLongPlainText(t *testing.T) {
+	minimum, maximum := 100000.0, 300000.0
+	request := nativeJobRequest{
+		Title: " Backend Developer ", Category: "Engineering",
+		Description:      strings.Repeat("Ұ", 200) + "\n<script>alert(1)</script>",
+		Responsibilities: "Build APIs\nReview code", Requirements: "Production Go experience",
+		Skills: []string{" Go ", "Rust", "React Native"}, Benefits: []string{" Learning budget "},
+		Location: "Алматы", WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
+		SalaryMin: &minimum, SalaryMax: &maximum, SalaryCurrency: "usd", SalaryPeriod: "month",
+	}
+	input, fields := request.input()
+	if len(fields) != 0 {
+		t.Fatalf("expected valid input, got %#v", fields)
+	}
+	if input.Title != "Backend Developer" || len(input.Skills) != 3 || input.Skills[2] != "React Native" || input.SalaryCurrency != "USD" {
+		t.Fatalf("normalization corrupted structured input: %#v", input)
+	}
+	if !strings.Contains(input.Description, "<script>") {
+		t.Fatalf("plain text content was unexpectedly truncated or altered")
+	}
+}
+
+func TestNativeJobValidationRejectsMalformedContentAndSalary(t *testing.T) {
+	negative, smaller := -1.0, 10.0
+	request := nativeJobRequest{
+		Title: strings.Repeat("x", jobTitleMax+1), Category: "Engineering", Description: "A sufficiently detailed description",
+		Responsibilities: "Develop APIs", Requirements: "Go experience", Skills: []string{"Go", "   "},
+		Location: "Almaty", WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
+		SalaryMin: &negative, SalaryMax: &smaller, SalaryCurrency: "US", SalaryPeriod: "week",
+	}
+	_, fields := request.input()
+	for _, field := range []string{"title", "skills", "salary_min", "salary_currency", "salary_period"} {
+		if fields[field] == "" {
+			t.Errorf("expected validation error for %s, got %#v", field, fields)
+		}
+	}
+}
+
+func TestNativeJobValidationRejectsInvertedSalaryRange(t *testing.T) {
+	minimum, maximum := 300000.0, 100000.0
+	request := nativeJobRequest{
+		Title: "Backend Developer", Category: "Engineering", Description: "A sufficiently detailed description",
+		Responsibilities: "Develop APIs", Requirements: "Go experience", Location: "Almaty",
+		WorkMode: "hybrid", EmploymentType: "full_time", ExperienceLevel: "middle",
+		SalaryMin: &minimum, SalaryMax: &maximum, SalaryCurrency: "KZT", SalaryPeriod: "month",
+	}
+	_, fields := request.input()
+	if fields["salary_max"] == "" {
+		t.Fatalf("expected inverted range error, got %#v", fields)
+	}
+}
+
 func employerRouter(role string, store *employerStoreStub) http.Handler {
 	service := &authStub{session: auth.Session{User: auth.User{ID: "11111111-1111-4111-8111-111111111111", Role: role, Status: auth.StatusActive}}}
 	return NewRouter(checker{}, slog.New(slog.NewTextHandler(io.Discard, nil)), "http://localhost:5173", jobReaderStub{}, store, service)

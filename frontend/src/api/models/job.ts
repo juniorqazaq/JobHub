@@ -1,13 +1,23 @@
 export type WorkMode = "remote" | "hybrid" | "on_site";
-export type EmploymentType = "full_time" | "part_time" | "contract" | "temporary" | "internship";
-export type ExperienceLevel = "no_experience" | "junior" | "middle" | "senior" | "lead";
+export type EmploymentType =
+  | "full_time"
+  | "part_time"
+  | "contract"
+  | "temporary"
+  | "internship";
+export type ExperienceLevel =
+  | "no_experience"
+  | "junior"
+  | "middle"
+  | "senior"
+  | "lead";
 export type PublicationStatus = "draft" | "published" | "paused" | "closed";
 export type JobSort = "newest" | "oldest";
 
 export interface SalaryRange {
   min: number;
   max?: number;
-  currency: "KZT" | "USD";
+  currency: string;
   period: "month" | "year";
 }
 
