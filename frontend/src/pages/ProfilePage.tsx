@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileText, Plus, Save, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Plus, Save, Trash2 } from "lucide-react";
+import { useEffect } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -23,7 +23,7 @@ import {
 } from "../components/ui/FormControls";
 import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
-import { SiteShell } from "../layouts/SiteShell";
+import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 
 const optionalUrl = z.union([z.literal(""), z.url()]);
 const schema = z.object({
@@ -113,11 +113,10 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function ProfilePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { session } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
   const profile = useQuery({
     queryKey: ["candidate-profile"],
     queryFn: () => repositories.candidate.getProfile(),
@@ -150,74 +149,34 @@ export function ProfilePage() {
     onError: () =>
       toast.showToast({ tone: "error", title: t("profile.saveError") }),
   });
-  const upload = useMutation({
-    mutationFn: (file: File) =>
-      repositories.candidate.uploadResume(file, session!.csrfToken),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ["candidate-profile"] });
-      toast.showToast({ title: t("resume.uploaded") });
-    },
-    onError: () =>
-      toast.showToast({ tone: "error", title: t("resume.uploadError") }),
-  });
-  const remove = useMutation({
-    mutationFn: () => repositories.candidate.deleteResume(session!.csrfToken),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ["candidate-profile"] });
-      toast.showToast({ title: t("resume.deleted") });
-    },
-  });
   const submit = form.handleSubmit(
     (values) => save.mutate(toInput(values)),
     () => toast.showToast({ tone: "error", title: t("profile.fixErrors") }),
   );
-  const chooseFile = (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-    if (file.type !== "application/pdf" || file.size > 10 * 1024 * 1024) {
-      toast.showToast({
-        tone: "error",
-        title: t(
-          file.size > 10 * 1024 * 1024 ? "resume.tooLarge" : "resume.pdfOnly",
-        ),
-      });
-      return;
-    }
-    upload.mutate(file);
-  };
-  const download = async () => {
-    const blob = await repositories.candidate.downloadOwnResume();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = profile.data?.resume?.originalFilename ?? "resume.pdf";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
   if (profile.isPending)
     return (
-      <SiteShell>
-        <main className="profile-page page-container">
+      <CandidateWorkspaceLayout>
+        <section className="profile-page">
           <ProfileSkeleton label={t("profile.loading")} />
-        </main>
-      </SiteShell>
+        </section>
+      </CandidateWorkspaceLayout>
     );
   if (profile.isError)
     return (
-      <SiteShell>
-        <main className="profile-page page-container">
+      <CandidateWorkspaceLayout>
+        <section className="profile-page">
           <ErrorState
             title={t("profile.loadErrorTitle")}
             description={t("profile.loadErrorDescription")}
             actionLabel={t("common.retry")}
             onAction={() => void profile.refetch()}
           />
-        </main>
-      </SiteShell>
+        </section>
+      </CandidateWorkspaceLayout>
     );
   return (
-    <SiteShell>
-      <main className="profile-page page-container">
+    <CandidateWorkspaceLayout>
+      <section className="profile-page">
         <header className="profile-header">
           <div className="profile-avatar" aria-hidden="true">
             {initials(profile.data!.fullName)}
@@ -527,75 +486,6 @@ export function ProfilePage() {
               </div>
             ))}
           </ProfileSection>
-          <ProfileSection title={t("profile.sections.preferences")}>
-            <div className="profile-grid">
-              <Input
-                label={t("profile.fields.desiredSalary")}
-                inputMode="decimal"
-                {...form.register("desiredSalary")}
-              />
-              <Input
-                label={t("profile.fields.currency")}
-                {...form.register("currency")}
-              />
-              <Select
-                label={t("profile.fields.salaryPeriod")}
-                {...form.register("salaryPeriod")}
-              >
-                <option value="">{t("common.notProvided")}</option>
-                <option value="month">
-                  {t("employer.salaryPeriods.month")}
-                </option>
-                <option value="year">{t("employer.salaryPeriods.year")}</option>
-              </Select>
-              <Select
-                label={t("profile.fields.searchStatus")}
-                {...form.register("searchStatus")}
-              >
-                {["actively_looking", "open_to_offers", "not_looking"].map(
-                  (x) => (
-                    <option key={x} value={x}>
-                      {t(`profile.searchStatuses.${x}`)}
-                    </option>
-                  ),
-                )}
-              </Select>
-              <Input
-                label={t("profile.fields.preferredLocations")}
-                {...form.register("preferredLocations")}
-              />
-              <Input
-                label={t("profile.fields.preferredCategories")}
-                {...form.register("preferredCategories")}
-              />
-              <Input
-                label={t("profile.fields.preferredRoles")}
-                {...form.register("preferredRoles")}
-              />
-            </div>
-            <fieldset className="profile-checks">
-              <legend>{t("profile.fields.preferredWorkModes")}</legend>
-              {workModes.map((x) => (
-                <Checkbox
-                  key={x}
-                  label={t(`employer.workModes.${x}`)}
-                  value={x}
-                  {...form.register("preferredWorkModes")}
-                />
-              ))}
-            </fieldset>
-            <fieldset className="profile-checks">
-              <legend>{t("profile.fields.preferredEmploymentTypes")}</legend>
-              {employmentTypes.map((x) => (
-                <Checkbox
-                  key={x}
-                  label={t(`employer.employmentTypes.${x}`)}
-                  value={x}
-                  {...form.register("preferredEmploymentTypes")}
-                />
-              ))}
-            </fieldset>
-          </ProfileSection>
           <ProfileSection title={t("profile.sections.linksPrivacy")}>
             <div className="profile-grid">
               <Input
@@ -634,75 +524,6 @@ export function ProfilePage() {
               />
             </div>
           </ProfileSection>
-          <ProfileSection title={t("profile.sections.resume")}>
-            <input
-              ref={fileRef}
-              className="visually-hidden"
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(event) => chooseFile(event.target.files)}
-            />
-            {profile.data!.resume ? (
-              <div className="resume-row">
-                <FileText size={26} />
-                <div>
-                  <strong>{profile.data!.resume.originalFilename}</strong>
-                  <span>
-                    {formatBytes(profile.data!.resume.sizeBytes)} ·{" "}
-                    {formatDate(profile.data!.resume.uploadedAt, i18n.language)}
-                  </span>
-                </div>
-                <div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    leadingIcon={<Download size={15} />}
-                    onClick={() => void download()}
-                  >
-                    {t("resume.download")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    leadingIcon={<Upload size={15} />}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {t("resume.replace")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="sm"
-                    leadingIcon={<Trash2 size={15} />}
-                    onClick={() =>
-                      window.confirm(t("resume.deleteConfirm")) &&
-                      remove.mutate()
-                    }
-                  >
-                    {t("resume.delete")}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="resume-upload">
-                <FileText size={28} />
-                <div>
-                  <strong>{t("resume.emptyTitle")}</strong>
-                  <p>{t("resume.emptyDescription")}</p>
-                </div>
-                <Button
-                  type="button"
-                  leadingIcon={<Upload size={17} />}
-                  isLoading={upload.isPending}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  {t("resume.upload")}
-                </Button>
-              </div>
-            )}
-          </ProfileSection>
           <div className="profile-save-bar">
             <span>
               {form.formState.isDirty
@@ -718,8 +539,8 @@ export function ProfilePage() {
             </Button>
           </div>
         </form>
-      </main>
-    </SiteShell>
+      </section>
+    </CandidateWorkspaceLayout>
   );
 }
 
@@ -887,14 +708,6 @@ function initials(value: string) {
     .join("")
     .toUpperCase();
 }
-function formatBytes(value: number) {
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
-}
-function formatDate(value: string, language: string) {
-  return new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(
-    new Date(value),
-  );
-}
 function ProfileSkeleton({ label }: { label: string }) {
   return (
     <div className="profile-skeleton" role="status" aria-label={label}>
@@ -904,7 +717,6 @@ function ProfileSkeleton({ label }: { label: string }) {
     </div>
   );
 }
-const workModes: WorkMode[] = ["on_site", "hybrid", "remote"];
 const employmentTypes: EmploymentType[] = [
   "full_time",
   "part_time",

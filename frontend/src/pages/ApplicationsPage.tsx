@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BriefcaseBusiness, CalendarDays, ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { repositories } from "../api/repositories";
@@ -11,13 +12,15 @@ import {
   JobListSkeleton,
 } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
-import { SiteShell } from "../layouts/SiteShell";
+import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
+import type { ApplicationStatus } from "../api/models/candidate";
 
 export function ApplicationsPage() {
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
   const client = useQueryClient();
   const toast = useToast();
+  const [status, setStatus] = useState<"all" | ApplicationStatus>("all");
   const apps = useQuery({
     queryKey: ["applications"],
     queryFn: () => repositories.candidate.listApplications(),
@@ -35,14 +38,36 @@ export function ApplicationsPage() {
         title: t("applications.withdrawError"),
       }),
   });
+  const visibleApplications =
+    status === "all"
+      ? apps.data
+      : apps.data?.filter((application) => application.status === status);
   return (
-    <SiteShell>
-      <main className="candidate-list-page page-container">
+    <CandidateWorkspaceLayout>
+      <section className="candidate-list-page">
         <header>
           <p className="auth-eyebrow">{t("applications.eyebrow")}</p>
           <h1>{t("applications.title")}</h1>
           <p>{t("applications.description")}</p>
         </header>
+        {apps.data?.length ? (
+          <label className="application-filter">
+            <span>{t("applications.filterLabel")}</span>
+            <select
+              value={status}
+              onChange={(event) =>
+                setStatus(event.target.value as "all" | ApplicationStatus)
+              }
+            >
+              <option value="all">{t("applications.filterAll")}</option>
+              {applicationStatuses.map((value) => (
+                <option key={value} value={value}>
+                  {t(`applications.statuses.${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {apps.isPending ? (
           <JobListSkeleton label={t("applications.loading")} />
         ) : null}
@@ -65,9 +90,9 @@ export function ApplicationsPage() {
             }
           />
         ) : null}
-        {apps.data?.length ? (
+        {visibleApplications?.length ? (
           <div className="application-list">
-            {apps.data.map((app) => (
+            {visibleApplications.map((app) => (
               <article className="application-row" key={app.id}>
                 <div className="application-row__icon">
                   <BriefcaseBusiness size={21} />
@@ -133,8 +158,13 @@ export function ApplicationsPage() {
             ))}
           </div>
         ) : null}
-      </main>
-    </SiteShell>
+        {apps.data?.length && visibleApplications?.length === 0 ? (
+          <p className="section-empty application-filter-empty">
+            {t("applications.filterEmpty")}
+          </p>
+        ) : null}
+      </section>
+    </CandidateWorkspaceLayout>
   );
 }
 function formatDate(value: string, language: string) {
@@ -142,3 +172,13 @@ function formatDate(value: string, language: string) {
     new Date(value),
   );
 }
+const applicationStatuses: ApplicationStatus[] = [
+  "sent",
+  "viewed",
+  "in_review",
+  "contacted",
+  "interview",
+  "offer",
+  "rejected",
+  "withdrawn",
+];

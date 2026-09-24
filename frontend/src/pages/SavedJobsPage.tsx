@@ -1,24 +1,39 @@
-import { useQuery } from "@tanstack/react-query";
-import { Bookmark, ChevronRight, MapPin } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bookmark, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { repositories } from "../api/repositories";
+import { useAuth } from "../app/authContext";
+import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
+import { Button } from "../components/ui/Button";
 import {
   EmptyState,
   ErrorState,
   JobListSkeleton,
 } from "../components/ui/Feedback";
-import { SiteShell } from "../layouts/SiteShell";
+import { useToast } from "../components/ui/useToast";
 
 export function SavedJobsPage() {
   const { t } = useTranslation();
+  const { session } = useAuth();
+  const client = useQueryClient();
+  const toast = useToast();
   const saved = useQuery({
     queryKey: ["saved-jobs"],
     queryFn: () => repositories.candidate.listSavedJobs(),
   });
+  const unsave = useMutation({
+    mutationFn: (jobId: string) =>
+      repositories.candidate.unsaveJob(jobId, session!.csrfToken),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["saved-jobs"] });
+      toast.showToast({ title: t("saved.removed") });
+    },
+    onError: () => toast.showToast({ tone: "error", title: t("saved.error") }),
+  });
   return (
-    <SiteShell>
-      <main className="candidate-list-page page-container">
+    <CandidateWorkspaceLayout>
+      <section className="candidate-list-page">
         <header>
           <p className="auth-eyebrow">{t("saved.eyebrow")}</p>
           <h1>{t("saved.title")}</h1>
@@ -50,22 +65,42 @@ export function SavedJobsPage() {
           <div className="candidate-job-list">
             {saved.data.map((item) =>
               item.available ? (
-                <Link
-                  className="candidate-job-row"
-                  to={`/jobs/${item.jobId}`}
-                  key={item.jobId}
-                >
+                <article className="candidate-job-row" key={item.jobId}>
                   <Bookmark size={20} fill="currentColor" aria-hidden="true" />
                   <div>
-                    <h2>{item.title}</h2>
+                    <h2>
+                      <Link to={`/jobs/${item.jobId}`}>{item.title}</Link>
+                    </h2>
                     <p>{item.companyName}</p>
                     <span>
                       <MapPin size={15} />
                       {item.location}
                     </span>
+                    {item.sourceName ? (
+                      <small>
+                        {t("saved.source", { source: item.sourceName })}
+                      </small>
+                    ) : null}
                   </div>
-                  <ChevronRight size={20} />
-                </Link>
+                  <div className="candidate-job-row__actions">
+                    <Link
+                      className="ui-icon-button ui-icon-button--quiet"
+                      aria-label={t("saved.openJob", { title: item.title })}
+                      to={`/jobs/${item.jobId}`}
+                    >
+                      <ChevronRight size={20} />
+                    </Link>
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      leadingIcon={<Trash2 size={16} />}
+                      isLoading={unsave.isPending}
+                      onClick={() => unsave.mutate(item.jobId)}
+                    >
+                      {t("saved.unsave")}
+                    </Button>
+                  </div>
+                </article>
               ) : (
                 <article
                   className="candidate-job-row is-unavailable"
@@ -81,7 +116,7 @@ export function SavedJobsPage() {
             )}
           </div>
         ) : null}
-      </main>
-    </SiteShell>
+      </section>
+    </CandidateWorkspaceLayout>
   );
 }

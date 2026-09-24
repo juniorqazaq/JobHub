@@ -19,24 +19,38 @@ export function SiteShell({ children }: PropsWithChildren) {
 
   return (
     <div className="site-shell">
-      <a className="skip-link" href="#main-content">{t("common.skipToContent")}</a>
+      <a className="skip-link" href="#main-content">
+        {t("common.skipToContent")}
+      </a>
       <header className="site-header">
         <div className="page-container site-header__inner">
           <Link className="brand" to="/" aria-label={t("nav.homeLabel")}>
-            <span>Job</span><strong>Hub</strong>
+            <span>Job</span>
+            <strong>Hub</strong>
           </Link>
           <nav className="site-nav" aria-label={t("nav.primaryLabel")}>
             <NavLink to="/jobs">{t("nav.jobs")}</NavLink>
-            {auth.session?.user.role === "job_seeker" ? <><NavLink to="/saved">{t("nav.saved")}</NavLink><NavLink to="/applications">{t("nav.applications")}</NavLink><NavLink to="/profile">{t("nav.profile")}</NavLink></> : null}
-            {auth.session?.user.role === "employer" ? <NavLink to="/employer">{t("nav.employer")}</NavLink> : null}
-            {auth.session?.user.role === "admin" ? <NavLink to="/admin">{t("nav.admin")}</NavLink> : null}
-            <span className="site-nav__location"><MapPin size={16} aria-hidden="true" />{t("nav.location")}</span>
+            {auth.session?.user.role === "employer" ? (
+              <NavLink to="/employer">{t("nav.employer")}</NavLink>
+            ) : null}
+            {auth.session?.user.role === "admin" ? (
+              <NavLink to="/admin">{t("nav.admin")}</NavLink>
+            ) : null}
+            <span className="site-nav__location">
+              <MapPin size={16} aria-hidden="true" />
+              {t("nav.location")}
+            </span>
           </nav>
           <div className="site-header__actions">
             <label className="language-select">
               <span className="visually-hidden">{t("common.language")}</span>
               <Globe2 size={17} aria-hidden="true" />
-              <select value={language} onChange={(event) => void i18n.changeLanguage(event.target.value)}>
+              <select
+                value={language}
+                onChange={(event) =>
+                  void i18n.changeLanguage(event.target.value)
+                }
+              >
                 <option value="kk">{t("languages.kk")}</option>
                 <option value="ru">{t("languages.ru")}</option>
                 <option value="en">{t("languages.en")}</option>
@@ -44,7 +58,19 @@ export function SiteShell({ children }: PropsWithChildren) {
             </label>
             {auth.session ? (
               <>
-                <Link className="auth-link" to="/account">{auth.session.user.fullName}</Link>
+                <Link
+                  className="candidate-menu-link"
+                  to={
+                    auth.session.user.role === "job_seeker"
+                      ? "/workspace"
+                      : "/account"
+                  }
+                >
+                  <span aria-hidden="true">
+                    {initials(auth.session.user.fullName)}
+                  </span>
+                  <strong>{auth.session.user.fullName}</strong>
+                </Link>
                 <IconButton
                   label={t("auth.logout")}
                   icon={<LogOut size={18} />}
@@ -54,8 +80,12 @@ export function SiteShell({ children }: PropsWithChildren) {
               </>
             ) : (
               <>
-                <Link className="auth-link" to="/login">{t("nav.login")}</Link>
-                <Link className="auth-link auth-link--primary" to="/register">{t("nav.register")}</Link>
+                <Link className="auth-link" to="/login">
+                  {t("nav.login")}
+                </Link>
+                <Link className="auth-link auth-link--primary" to="/register">
+                  {t("nav.register")}
+                </Link>
               </>
             )}
           </div>
@@ -64,8 +94,13 @@ export function SiteShell({ children }: PropsWithChildren) {
       <main id="main-content">{children}</main>
       <footer className="site-footer">
         <div className="page-container site-footer__inner">
-          <Link className="brand brand--small" to="/" aria-label={t("nav.homeLabel")}>
-            <span>Job</span><strong>Hub</strong>
+          <Link
+            className="brand brand--small"
+            to="/"
+            aria-label={t("nav.homeLabel")}
+          >
+            <span>Job</span>
+            <strong>Hub</strong>
           </Link>
           <nav aria-label={t("footer.label")}>
             <Link to="/jobs">{t("nav.jobs")}</Link>
@@ -81,4 +116,13 @@ export function SiteShell({ children }: PropsWithChildren) {
 
 function supportedLanguage(language: string): Language {
   return language === "kk" || language === "ru" ? language : "en";
+}
+
+function initials(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase())
+    .join("");
 }
