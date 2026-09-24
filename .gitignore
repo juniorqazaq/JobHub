@@ -16,6 +16,8 @@ backend/coverage/
 .vscode/
 !.vscode/settings.json
 backend/bin/
+backend/storage/
+storage/
 bin/
 build/
 tmp/

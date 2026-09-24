@@ -36,6 +36,7 @@ services:
       DATABASE_MIGRATION_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable&search_path=public
       PGX_QUERY_EXEC_MODE: ${PGX_QUERY_EXEC_MODE:-cache_statement}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      RESUME_STORAGE_DIR: /var/lib/jobhub/resumes
     ports:
       - "127.0.0.1:${PORT:-8080}:8080"
     depends_on:
@@ -50,6 +51,8 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    volumes:
+      - resume_data:/var/lib/jobhub/resumes
   backend:
     profiles: ["external"]
     build: ./backend
@@ -60,6 +63,7 @@ services:
       DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:-${DATABASE_URL}}
       PGX_QUERY_EXEC_MODE: ${PGX_QUERY_EXEC_MODE:-cache_statement}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      RESUME_STORAGE_DIR: /var/lib/jobhub/resumes
     ports:
       - "127.0.0.1:${PORT:-8080}:8080"
     healthcheck:
@@ -69,5 +73,8 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    volumes:
+      - resume_data:/var/lib/jobhub/resumes
 volumes:
   postgres_data:
+  resume_data:
