@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { repositories } from "../api/repositories";
 import { ErrorState, Skeleton } from "../components/ui/Feedback";
+import { CandidateIdentityHeader } from "../components/candidate/CandidateIdentityHeader";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
 
 export function CandidateOverviewPage() {
@@ -38,29 +39,11 @@ export function CandidateOverviewPage() {
         ) : null}
         {profile.data ? (
           <>
-            <header className="workspace-overview-header">
-              <div className="profile-avatar" aria-hidden="true">
-                {initials(profile.data.fullName)}
-              </div>
-              <div>
-                <p className="auth-eyebrow">{t("workspace.eyebrow")}</p>
-                <h1 id="workspace-overview-title">{profile.data.fullName}</h1>
-                <p>
-                  {profile.data.desiredPosition ||
-                    profile.data.currentPosition ||
-                    t("profile.positionMissing")}
-                </p>
-              </div>
-              <div className="profile-completion">
-                <strong>{profile.data.completion.percentage}%</strong>
-                <span>{t("profile.complete")}</span>
-                <div aria-hidden="true">
-                  <span
-                    style={{ width: `${profile.data.completion.percentage}%` }}
-                  />
-                </div>
-              </div>
-            </header>
+            <CandidateIdentityHeader
+              eyebrow={t("workspace.eyebrow")}
+              profile={profile.data}
+              titleId="workspace-overview-title"
+            />
 
             <div className="workspace-summary-list">
               <section>
@@ -150,14 +133,6 @@ function OverviewSkeleton() {
       <Skeleton className="detail-skeleton__body" />
     </div>
   );
-}
-function initials(value: string) {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toLocaleUpperCase())
-    .join("");
 }
 function formatDate(value: string, language: string) {
   return new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(

@@ -84,10 +84,12 @@ svg {
 
 .job-row h3, .job-row__facts, .job-row p, .job-row__footer,
 .detail-content h1, .detail-company, .detail-facts, .detail-source-cue, .detail-rail,
-.profile-header, .profile-section, .account-header, .employer-job-row, .applicant-row,
+.candidate-identity-header, .profile-section, .account-header, .employer-job-row, .applicant-row,
 .source-job-row, .source-job-row__main, .source-job-row__company, .source-job-row__summary,
-.source-job-row__salary, .resume-row, .resume-row strong, .workspace-page__header,
-.workspace-overview-header { min-width: 0; overflow-wrap: anywhere; }
+.source-job-row__salary, .resume-row, .resume-row strong, .workspace-page__header {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 .page-container {
   width: min(100% - 2rem, var(--container-page));

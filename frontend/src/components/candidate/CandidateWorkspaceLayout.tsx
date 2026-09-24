@@ -1,7 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../app/authContext";
 import { SiteShell } from "../../layouts/SiteShell";
 
 const destinations = [
@@ -16,10 +15,8 @@ const destinations = [
 
 export function CandidateWorkspaceLayout({ children }: PropsWithChildren) {
   const { t } = useTranslation();
-  const { session } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const user = session!.user;
   const activePath =
     destinations.find(([path]) => location.pathname === path)?.[0] ??
     "/workspace";
@@ -28,13 +25,7 @@ export function CandidateWorkspaceLayout({ children }: PropsWithChildren) {
     <SiteShell>
       <div className="candidate-workspace page-container">
         <aside className="candidate-workspace__sidebar">
-          <div className="candidate-workspace__identity">
-            <span aria-hidden="true">{initials(user.fullName)}</span>
-            <div>
-              <strong>{user.fullName}</strong>
-              <small>{t("workspace.title")}</small>
-            </div>
-          </div>
+          <p className="candidate-workspace__label">{t("workspace.title")}</p>
           <nav aria-label={t("workspace.navigationLabel")}>
             {destinations.map(([path, key]) => (
               <NavLink
@@ -65,13 +56,4 @@ export function CandidateWorkspaceLayout({ children }: PropsWithChildren) {
       </div>
     </SiteShell>
   );
-}
-
-function initials(value: string) {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toLocaleUpperCase())
-    .join("");
 }

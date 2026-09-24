@@ -24,6 +24,7 @@ import {
 import { ErrorState, Skeleton } from "../components/ui/Feedback";
 import { useToast } from "../components/ui/useToast";
 import { CandidateWorkspaceLayout } from "../components/candidate/CandidateWorkspaceLayout";
+import { CandidateIdentityHeader } from "../components/candidate/CandidateIdentityHeader";
 
 const optionalUrl = z.union([z.literal(""), z.url()]);
 const schema = z.object({
@@ -177,34 +178,10 @@ export function ProfilePage() {
   return (
     <CandidateWorkspaceLayout>
       <section className="profile-page">
-        <header className="profile-header">
-          <div className="profile-avatar" aria-hidden="true">
-            {initials(profile.data!.fullName)}
-          </div>
-          <div>
-            <p className="auth-eyebrow">{t("profile.eyebrow")}</p>
-            <h1>{profile.data!.fullName}</h1>
-            <p>
-              {profile.data!.desiredPosition ||
-                profile.data!.currentPosition ||
-                t("profile.positionMissing")}
-            </p>
-          </div>
-          <div
-            className="profile-completion"
-            aria-label={t("profile.completionLabel", {
-              value: profile.data!.completion.percentage,
-            })}
-          >
-            <strong>{profile.data!.completion.percentage}%</strong>
-            <span>{t("profile.complete")}</span>
-            <div>
-              <span
-                style={{ width: `${profile.data!.completion.percentage}%` }}
-              />
-            </div>
-          </div>
-        </header>
+        <CandidateIdentityHeader
+          eyebrow={t("profile.eyebrow")}
+          profile={profile.data!}
+        />
         <form className="profile-form" onSubmit={submit} noValidate>
           <ProfileSection title={t("profile.sections.about")}>
             <div className="profile-grid">
@@ -699,14 +676,6 @@ function list(value: string) {
 function number(value: string) {
   const n = Number(value);
   return value.trim() && Number.isFinite(n) ? n : undefined;
-}
-function initials(value: string) {
-  return value
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((x) => x[0])
-    .join("")
-    .toUpperCase();
 }
 function ProfileSkeleton({ label }: { label: string }) {
   return (
