@@ -55,7 +55,9 @@ func run(logger *slog.Logger) error {
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return err
 	}
-	server := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	// Profile updates can span several remote Postgres round trips. Keep the API and
+	// browser timeouts aligned so a committed request is not reported as failed.
+	server := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	failures := make(chan error, 1)
 	go func() { failures <- server.ListenAndServe() }()
 	logger.Info("API started", "port", cfg.Port, "environment", cfg.Environment)

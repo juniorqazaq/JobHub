@@ -161,13 +161,11 @@ export function EmployerApplicantsPage() {
                       <option value={app.status}>
                         {t(`applications.statuses.${app.status}`)}
                       </option>
-                      {actions
-                        .filter((status) => status !== app.status)
-                        .map((status) => (
-                          <option value={status} key={status}>
-                            {t(`applications.statuses.${status}`)}
-                          </option>
-                        ))}
+                      {nextStatuses(app.status).map((status) => (
+                        <option value={status} key={status}>
+                          {t(`applications.statuses.${status}`)}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
@@ -184,4 +182,21 @@ function formatDate(value: string, language: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function nextStatuses(current: ApplicationStatus) {
+  if (current === "rejected" || current === "withdrawn") return [];
+  const rank: Partial<Record<ApplicationStatus, number>> = {
+    sent: 0,
+    viewed: 1,
+    in_review: 2,
+    contacted: 3,
+    interview: 4,
+    offer: 5,
+  };
+  return actions.filter(
+    (status) =>
+      status === "rejected" ||
+      (rank[status] ?? -1) > (rank[current] ?? Number.MAX_SAFE_INTEGER),
+  );
 }

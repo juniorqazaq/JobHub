@@ -29,17 +29,16 @@ export function JobSaveButton({
   });
   const isSaved = saved.data?.some((item) => item.jobId === job.id) ?? false;
   const mutation = useMutation({
-    mutationFn: () =>
-      isSaved
-        ? repositories.candidate.unsaveJob(job.id, auth.session!.csrfToken)
-        : repositories.candidate.saveJob(job.id, auth.session!.csrfToken),
-    onMutate: async () => {
+    mutationFn: (saving: boolean) =>
+      saving
+        ? repositories.candidate.saveJob(job.id, auth.session!.csrfToken)
+        : repositories.candidate.unsaveJob(job.id, auth.session!.csrfToken),
+    onMutate: async (saving) => {
       await client.cancelQueries({ queryKey: ["saved-jobs"] });
       const previous = client.getQueryData<SavedJob[]>(["saved-jobs"]);
       client.setQueryData<SavedJob[]>(["saved-jobs"], (current = []) =>
-        isSaved
-          ? current.filter((item) => item.jobId !== job.id)
-          : [
+        saving
+          ? [
               {
                 jobId: job.id,
                 savedAt: new Date().toISOString(),
@@ -52,7 +51,8 @@ export function JobSaveButton({
                 applicationMethod: job.application.method,
               },
               ...current,
-            ],
+            ]
+          : current.filter((item) => item.jobId !== job.id),
       );
       return { previous };
     },
@@ -60,8 +60,8 @@ export function JobSaveButton({
       client.setQueryData(["saved-jobs"], context?.previous);
       toast.showToast({ tone: "error", title: t("saved.error") });
     },
-    onSuccess: () =>
-      toast.showToast({ title: t(isSaved ? "saved.removed" : "saved.added") }),
+    onSuccess: (_data, saving) =>
+      toast.showToast({ title: t(saving ? "saved.added" : "saved.removed") }),
     onSettled: () =>
       void client.invalidateQueries({ queryKey: ["saved-jobs"] }),
   });
@@ -72,7 +72,7 @@ export function JobSaveButton({
       navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`);
       return;
     }
-    mutation.mutate();
+    mutation.mutate(!isSaved);
   };
   return (
     <button

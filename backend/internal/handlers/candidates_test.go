@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"jobhub-ai/backend/internal/auth"
@@ -56,6 +57,18 @@ func TestCandidateMutationRequiresCSRF(t *testing.T) {
 	router.ServeHTTP(res, req)
 	if res.Code != http.StatusForbidden || store.saveCalls != 0 {
 		t.Fatalf("expected csrf rejection, got %d", res.Code)
+	}
+}
+
+func TestSavedJobPreflightAllowsPut(t *testing.T) {
+	router, _ := candidateRouter(auth.RoleJobSeeker, nil)
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/jobs/22222222-2222-4222-8222-222222222222/saved", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent || !strings.Contains(res.Header().Get("Access-Control-Allow-Methods"), http.MethodPut) {
+		t.Fatalf("expected PUT in CORS methods, got %d %q", res.Code, res.Header().Get("Access-Control-Allow-Methods"))
 	}
 }
 
