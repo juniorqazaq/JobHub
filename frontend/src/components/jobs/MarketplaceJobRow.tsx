@@ -2,6 +2,7 @@ import { BriefcaseBusiness, ChevronRight, ExternalLink, MapPin } from "lucide-re
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
 import type { JobSummary } from "../../api/models/job";
+import { JobSaveButton } from "./JobSaveButton";
 
 export function MarketplaceJobRow({ job }: { job: JobSummary }) {
   const { t, i18n } = useTranslation();
@@ -11,6 +12,7 @@ export function MarketplaceJobRow({ job }: { job: JobSummary }) {
 
   return (
     <article className="job-row">
+      <JobSaveButton job={job} compact />
       <Link className="job-row__link" to={`/jobs/${job.id}`} state={{ from: `${location.pathname}${location.search}` }}>
         <div className="job-row__body">
           <h3>{job.title}</h3>
