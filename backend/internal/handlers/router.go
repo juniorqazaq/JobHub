@@ -2,13 +2,27 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"jobhub-ai/backend/internal/auth"
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/middleware"
 	"log/slog"
 	"net/http"
 )
 
-func NewRouter(health HealthChecker, logger *slog.Logger, origin string, jobReaders ...jobs.Reader) *gin.Engine {
+func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras ...any) *gin.Engine {
+	var jobReader jobs.Reader
+	var authService auth.Service
+	environment := "development"
+	for _, extra := range extras {
+		switch value := extra.(type) {
+		case jobs.Reader:
+			jobReader = value
+		case auth.Service:
+			authService = value
+		case string:
+			environment = value
+		}
+	}
 	router := gin.New()
 	router.HandleMethodNotAllowed = true
 	router.Use(middleware.HTTP(logger, origin))
@@ -17,9 +31,20 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, jobRead
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "An unexpected error occurred"}})
 	}))
 	router.GET("/api/v1/health", Health(health, logger))
-	if len(jobReaders) > 0 && jobReaders[0] != nil {
-		router.GET("/api/v1/jobs", ListJobs(jobReaders[0], logger))
-		router.GET("/api/v1/jobs/:id", GetJob(jobReaders[0], logger))
+	if jobReader != nil {
+		router.GET("/api/v1/jobs", ListJobs(jobReader, logger))
+		router.GET("/api/v1/jobs/:id", GetJob(jobReader, logger))
+	}
+	if authService != nil {
+		RegisterAuthRoutes(router, authService, logger, origin, environment)
+		router.GET("/api/v1/employer/me", RequireRole(authService, auth.RoleEmployer), func(c *gin.Context) {
+			session := c.MustGet("session").(auth.Session)
+			c.JSON(http.StatusOK, gin.H{"user": session.User, "company": session.Company})
+		})
+		router.GET("/api/v1/admin/me", RequireRole(authService, auth.RoleAdmin), func(c *gin.Context) {
+			session := c.MustGet("session").(auth.Session)
+			c.JSON(http.StatusOK, gin.H{"user": session.User})
+		})
 	}
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Endpoint not found"}})
