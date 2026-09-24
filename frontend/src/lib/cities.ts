@@ -1,8 +1,8 @@
-export type AppLanguage = "kk" | "ru" | "en";
+export type AppLanguage = "kk" | "ru";
 
 export interface KazakhstanCity {
   id: string;
-  names: Record<AppLanguage, string>;
+  names: Record<AppLanguage, string> & { en?: string };
 }
 
 export const kazakhstanCities = [
@@ -32,6 +32,6 @@ export function isCityId(value: unknown): value is CityId {
 
 export function cityName(id: string | undefined, language: string): string {
   const city = kazakhstanCities.find((item) => item.id === id);
-  const locale: AppLanguage = language === "kk" || language === "ru" ? language : "en";
+  const locale: AppLanguage = language === "ru" ? "ru" : "kk";
   return city?.names[locale] ?? "";
 }

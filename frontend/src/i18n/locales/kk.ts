@@ -16,7 +16,7 @@ export const kk = {
       yes: "Иә",
       no: "Жоқ",
     },
-    languages: { kk: "Қазақша", ru: "Русский", en: "English" },
+    languages: { kk: "Қазақша", ru: "Русский" },
     nav: {
       homeLabel: "JobHub басты беті",
       primaryLabel: "Негізгі навигация",
@@ -69,6 +69,8 @@ export const kk = {
       anyLocation: "Кез келген жер",
       results: "Іздеу нәтижелері",
       resultCount_one: "{{count}} вакансия табылды",
+      resultCount_few: "{{count}} вакансия табылды",
+      resultCount_many: "{{count}} вакансия табылды",
       resultCount_other: "{{count}} вакансия табылды",
       sortLabel: "Сұрыптау",
       newest: "Алдымен жаңалары",

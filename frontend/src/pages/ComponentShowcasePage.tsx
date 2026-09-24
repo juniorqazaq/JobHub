@@ -16,7 +16,7 @@ import { useToast } from "../components/ui/useToast";
 import { SourceAwareJobRow } from "../components/jobs/SourceAwareJobRow";
 import { env } from "../lib/env";
 
-type Language = "en" | "kk" | "ru";
+type Language = "kk" | "ru";
 
 export function ComponentShowcasePage() {
   const { t, i18n } = useTranslation();
@@ -42,7 +42,7 @@ export function ComponentShowcasePage() {
   });
 
   useEffect(() => {
-    document.documentElement.lang = i18n.language;
+    document.documentElement.lang = supportedLanguage(i18n.language);
   }, [i18n.language]);
 
   const language = supportedLanguage(i18n.language);
@@ -59,7 +59,6 @@ export function ComponentShowcasePage() {
             <select id="showcase-language" value={language} onChange={(event) => void i18n.changeLanguage(event.target.value)}>
               <option value="kk">Қазақша</option>
               <option value="ru">Русский</option>
-              <option value="en">English</option>
             </select>
           </div>
         </div>
@@ -159,5 +158,5 @@ export function ComponentShowcasePage() {
 }
 
 function supportedLanguage(language: string): Language {
-  return language === "kk" || language === "ru" ? language : "en";
+  return language === "ru" ? "ru" : "kk";
 }

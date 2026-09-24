@@ -217,7 +217,7 @@ function formatSalary(profile: CandidateProfile, locale: string, t: (key: string
 function preferredCityNames(profile: CandidateProfile, locale: string) {
   const canonical = profile.preferredCityIds.map((id) => cityName(id, locale)).filter(Boolean);
   const legacy = profile.preferredLocations.filter(
-    (value) => !kazakhstanCities.some((city) => city.names.en === value),
+    (value) => !kazakhstanCities.some((city) => city.names.kk === value || city.names.ru === value || city.names.en === value),
   );
   return [...canonical, ...legacy];
 }

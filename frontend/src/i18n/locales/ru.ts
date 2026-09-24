@@ -16,7 +16,7 @@ export const ru = {
       yes: "Да",
       no: "Нет",
     },
-    languages: { kk: "Қазақша", ru: "Русский", en: "English" },
+    languages: { kk: "Қазақша", ru: "Русский" },
     nav: {
       homeLabel: "Главная JobHub",
       primaryLabel: "Основная навигация",

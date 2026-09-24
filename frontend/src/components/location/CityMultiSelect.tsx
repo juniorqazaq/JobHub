@@ -13,7 +13,7 @@ export function CityMultiSelect({ value, onChange, label, addLabel, removeLabel,
       <CitySelect value="" label={label} anyLabel={addLabel} onChange={(id) => { if (id && !value.includes(id)) onChange([...value, id]); }} />
       {value.length || legacyValues.length ? <ul className="preference-chips">
         {value.map((id) => { const name = cityName(id, language) || id; return <li key={id}>{name}<button type="button" aria-label={removeLabel(name)} onClick={() => onChange(value.filter((item) => item !== id))}><X size={14} /></button></li>; })}
-        {legacyValues.filter((legacy) => !kazakhstanCities.some((city) => cityName(city.id, "en") === legacy)).map((legacy) => <li key={`legacy-${legacy}`} className="is-legacy">{legacy}</li>)}
+        {legacyValues.filter((legacy) => !kazakhstanCities.some((city) => city.names.kk === legacy || city.names.ru === legacy || city.names.en === legacy)).map((legacy) => <li key={`legacy-${legacy}`} className="is-legacy">{legacy}</li>)}
       </ul> : null}
     </div>
   );

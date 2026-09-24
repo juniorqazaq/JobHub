@@ -643,7 +643,7 @@ function ProfileSection({
 function ProfileView({ profile }: { profile: CandidateProfile }) {
   const { t, i18n } = useTranslation();
   const empty = t("common.notProvided");
-  const dateLocale = i18n.resolvedLanguage === "kk" ? "kk-KZ" : i18n.resolvedLanguage === "ru" ? "ru-RU" : "en-US";
+  const dateLocale = i18n.resolvedLanguage === "ru" ? "ru-RU" : "kk-KZ";
   const birthDate = profile.birthDate
     ? new Intl.DateTimeFormat(dateLocale, { dateStyle: "long", timeZone: "UTC" }).format(
         new Date(`${profile.birthDate}T00:00:00Z`),
@@ -860,7 +860,7 @@ function toInput(v: FormValues): CandidateProfileInput {
   return {
     fullName: v.fullName,
     photoUrl: v.photoUrl || undefined,
-    city: isCityId(v.cityId) ? cityName(v.cityId, "en") : v.cityId.startsWith("legacy:") ? v.cityId.slice(7) : undefined,
+    city: isCityId(v.cityId) ? cityName(v.cityId, "kk") : v.cityId.startsWith("legacy:") ? v.cityId.slice(7) : undefined,
     cityId: isCityId(v.cityId) ? v.cityId : undefined,
     birthYear: number(v.birthYear),
     birthDate: v.birthDate || undefined,

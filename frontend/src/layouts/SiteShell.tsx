@@ -8,7 +8,7 @@ import { CitySelect } from "../components/location/CitySelect";
 import { isCityId } from "../lib/cities";
 import { setSearchCityPreference, usePreferredSearchCity } from "../lib/searchCityPreference";
 
-type Language = "kk" | "ru" | "en";
+type Language = "kk" | "ru";
 
 export function SiteShell({ children }: PropsWithChildren) {
   const { t, i18n } = useTranslation();
@@ -79,7 +79,6 @@ export function SiteShell({ children }: PropsWithChildren) {
               >
                 <option value="kk">{t("languages.kk")}</option>
                 <option value="ru">{t("languages.ru")}</option>
-                <option value="en">{t("languages.en")}</option>
               </select>
             </label>
             {auth.session ? (
@@ -148,7 +147,7 @@ export function SiteShell({ children }: PropsWithChildren) {
 }
 
 function supportedLanguage(language: string): Language {
-  return language === "kk" || language === "ru" ? language : "en";
+  return language === "ru" ? "ru" : "kk";
 }
 
 function initials(value: string) {
