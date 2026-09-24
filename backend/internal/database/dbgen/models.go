@@ -8,6 +8,77 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type JobhubApplication struct {
+	ID          pgtype.UUID
+	JobID       pgtype.UUID
+	CompanyID   pgtype.UUID
+	CandidateID pgtype.UUID
+	// Immutable submitted resume version. Active profile resume changes do not alter historical applications.
+	ResumeID  pgtype.UUID
+	Status    string
+	Message   pgtype.Text
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type JobhubApplicationStatusEvent struct {
+	ID             pgtype.UUID
+	ApplicationID  pgtype.UUID
+	ActorUserID    pgtype.UUID
+	PreviousStatus pgtype.Text
+	NewStatus      string
+	CreatedAt      pgtype.Timestamptz
+}
+
+type JobhubCandidateLanguage struct {
+	ID                 pgtype.UUID
+	CandidateID        pgtype.UUID
+	Language           string
+	NormalizedLanguage string
+	Proficiency        string
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+}
+
+// Private professional profiles accessed only through the authorized Go API.
+type JobhubCandidateProfile struct {
+	UserID                   pgtype.UUID
+	PhotoUrl                 pgtype.Text
+	City                     pgtype.Text
+	BirthYear                pgtype.Int4
+	Phone                    pgtype.Text
+	About                    pgtype.Text
+	CurrentPosition          pgtype.Text
+	DesiredPosition          pgtype.Text
+	YearsExperience          pgtype.Numeric
+	ExperienceLevel          pgtype.Text
+	Certifications           []string
+	DesiredSalary            pgtype.Numeric
+	Currency                 pgtype.Text
+	SalaryPeriod             pgtype.Text
+	PreferredLocations       []string
+	PreferredEmploymentTypes []string
+	PreferredWorkModes       []string
+	PreferredCategories      []string
+	PreferredRoles           []string
+	SearchStatus             string
+	GithubUrl                pgtype.Text
+	LinkedinUrl              pgtype.Text
+	PortfolioUrl             pgtype.Text
+	WebsiteUrl               pgtype.Text
+	AllowEmployerContact     bool
+	ShowProfileToEmployers   bool
+	ShowSalaryExpectations   bool
+	CreatedAt                pgtype.Timestamptz
+	UpdatedAt                pgtype.Timestamptz
+}
+
+type JobhubCandidateSkill struct {
+	CandidateID pgtype.UUID
+	SkillID     pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+}
+
 type JobhubCompany struct {
 	ID         pgtype.UUID
 	Name       string
@@ -36,6 +107,19 @@ type JobhubCompanySource struct {
 	FirstSeenAt  pgtype.Timestamptz
 	LastSeenAt   pgtype.Timestamptz
 	LastSyncedAt pgtype.Timestamptz
+}
+
+type JobhubEducation struct {
+	ID             pgtype.UUID
+	CandidateID    pgtype.UUID
+	Institution    string
+	Degree         string
+	FieldOfStudy   string
+	StartYear      int32
+	GraduationYear pgtype.Int4
+	Description    pgtype.Text
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
 }
 
 // Server-side provider import audit metadata. Never store provider credentials here.
@@ -123,6 +207,26 @@ type JobhubJobSource struct {
 	UpdatedAt                      pgtype.Timestamptz
 }
 
+type JobhubResume struct {
+	ID          pgtype.UUID
+	CandidateID pgtype.UUID
+	// Opaque server-side storage key. Never expose it in API responses.
+	StorageKey       string
+	OriginalFilename string
+	ContentType      string
+	SizeBytes        int64
+	Status           string
+	UploadedAt       pgtype.Timestamptz
+	RetiredAt        pgtype.Timestamptz
+	DeletedAt        pgtype.Timestamptz
+}
+
+type JobhubSavedJob struct {
+	CandidateID pgtype.UUID
+	JobID       pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+}
+
 // Stores only hashed opaque session and CSRF tokens. Raw tokens are never persisted.
 type JobhubSession struct {
 	ID        pgtype.UUID
@@ -132,6 +236,13 @@ type JobhubSession struct {
 	ExpiresAt pgtype.Timestamptz
 	RevokedAt pgtype.Timestamptz
 	CreatedAt pgtype.Timestamptz
+}
+
+type JobhubSkill struct {
+	ID             pgtype.UUID
+	Name           string
+	NormalizedName string
+	CreatedAt      pgtype.Timestamptz
 }
 
 type JobhubUser struct {
@@ -144,4 +255,20 @@ type JobhubUser struct {
 	Status          string
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
+}
+
+type JobhubWorkExperience struct {
+	ID             pgtype.UUID
+	CandidateID    pgtype.UUID
+	Company        string
+	Position       string
+	EmploymentType string
+	StartDate      pgtype.Date
+	EndDate        pgtype.Date
+	IsCurrent      bool
+	Description    pgtype.Text
+	Achievements   pgtype.Text
+	Skills         []string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
 }
