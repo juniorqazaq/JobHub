@@ -1,0 +1,12 @@
+{
+  "boards": [
+    {
+      "board_token": "jobhub-offline-fixture",
+      "display_name": "Synthetic fixture, never a live board",
+      "authorized_for_poc": false,
+      "test_board": true
+    }
+  ],
+  "max_requests": 12,
+  "max_jobs": 200
+}

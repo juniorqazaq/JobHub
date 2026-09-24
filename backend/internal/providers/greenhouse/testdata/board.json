@@ -1,0 +1,22 @@
+{
+  "jobs": [
+    {
+      "id": 9007199254740993,
+      "internal_job_id": 101,
+      "title": "Go Engineer",
+      "absolute_url": "https://careers.example/jobs/9007199254740993?gh_src=fixture",
+      "content": "&lt;p&gt;Build reliable services.&lt;/p&gt;",
+      "location": {"name": "Almaty"},
+      "updated_at": "2026-09-24T10:00:00Z"
+    },
+    {
+      "id": 42,
+      "internal_job_id": 102,
+      "title": "Support Engineer",
+      "absolute_url": "https://careers.example/jobs/42",
+      "content": "<p>Help customers.</p>"
+    },
+    {"id": 99, "title": "Missing application URL"}
+  ],
+  "meta": {"total": 3}
+}
