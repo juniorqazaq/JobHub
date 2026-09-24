@@ -1,12 +1,16 @@
-import { Globe2, MapPin } from "lucide-react";
+import { Globe2, LogOut, MapPin } from "lucide-react";
 import { useEffect, type PropsWithChildren } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../app/authContext";
+import { IconButton } from "../components/ui/Button";
 
 type Language = "kk" | "ru" | "en";
 
 export function SiteShell({ children }: PropsWithChildren) {
   const { t, i18n } = useTranslation();
+  const auth = useAuth();
+  const navigate = useNavigate();
   const language = supportedLanguage(i18n.language);
 
   useEffect(() => {
@@ -23,7 +27,8 @@ export function SiteShell({ children }: PropsWithChildren) {
           </Link>
           <nav className="site-nav" aria-label={t("nav.primaryLabel")}>
             <NavLink to="/jobs">{t("nav.jobs")}</NavLink>
-            <span>{t("nav.companies")}</span>
+            {auth.session?.user.role === "employer" ? <NavLink to="/employer">{t("nav.employer")}</NavLink> : null}
+            {auth.session?.user.role === "admin" ? <NavLink to="/admin">{t("nav.admin")}</NavLink> : null}
             <span className="site-nav__location"><MapPin size={16} aria-hidden="true" />{t("nav.location")}</span>
           </nav>
           <div className="site-header__actions">
@@ -36,8 +41,22 @@ export function SiteShell({ children }: PropsWithChildren) {
                 <option value="en">{t("languages.en")}</option>
               </select>
             </label>
-            <span className="auth-link">{t("nav.login")}</span>
-            <span className="auth-link auth-link--primary">{t("nav.register")}</span>
+            {auth.session ? (
+              <>
+                <Link className="auth-link" to={auth.session.user.role === "employer" ? "/employer" : auth.session.user.role === "admin" ? "/admin" : "/account"}>{auth.session.user.fullName}</Link>
+                <IconButton
+                  label={t("auth.logout")}
+                  icon={<LogOut size={18} />}
+                  variant="quiet"
+                  onClick={() => void auth.logout().then(() => navigate("/"))}
+                />
+              </>
+            ) : (
+              <>
+                <Link className="auth-link" to="/login">{t("nav.login")}</Link>
+                <Link className="auth-link auth-link--primary" to="/register">{t("nav.register")}</Link>
+              </>
+            )}
           </div>
         </div>
       </header>
