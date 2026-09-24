@@ -9,8 +9,19 @@ import (
 )
 
 type JobhubCompany struct {
+	ID         pgtype.UUID
+	Name       string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	Status     string
+	IsVerified bool
+}
+
+type JobhubCompanyMembership struct {
 	ID        pgtype.UUID
-	Name      string
+	CompanyID pgtype.UUID
+	UserID    pgtype.UUID
+	Role      string
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }
@@ -95,4 +106,27 @@ type JobhubJobSource struct {
 	AttributionText                pgtype.Text
 	CreatedAt                      pgtype.Timestamptz
 	UpdatedAt                      pgtype.Timestamptz
+}
+
+// Stores only hashed opaque session and CSRF tokens. Raw tokens are never persisted.
+type JobhubSession struct {
+	ID        pgtype.UUID
+	UserID    pgtype.UUID
+	TokenHash []byte
+	CsrfHash  []byte
+	ExpiresAt pgtype.Timestamptz
+	RevokedAt pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
+type JobhubUser struct {
+	ID              pgtype.UUID
+	FullName        string
+	Email           string
+	NormalizedEmail string
+	PasswordHash    string
+	Role            string
+	Status          string
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
 }

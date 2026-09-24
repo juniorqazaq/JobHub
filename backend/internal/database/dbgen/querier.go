@@ -14,12 +14,22 @@ type Querier interface {
 	AcquireSourceIngestionLock(ctx context.Context, source string) error
 	CompleteIngestionRun(ctx context.Context, arg CompleteIngestionRunParams) error
 	CountPublicJobs(ctx context.Context, arg CountPublicJobsParams) (int64, error)
+	CreateCompany(ctx context.Context, name string) (JobhubCompany, error)
+	CreateCompanyMembership(ctx context.Context, arg CreateCompanyMembershipParams) (JobhubCompanyMembership, error)
 	CreateIngestionRun(ctx context.Context, arg CreateIngestionRunParams) (pgtype.UUID, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) (JobhubSession, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (JobhubUser, error)
 	DatabaseTime(ctx context.Context) (pgtype.Timestamptz, error)
+	DeleteExpiredSessions(ctx context.Context) error
 	FailIngestionRun(ctx context.Context, arg FailIngestionRunParams) error
+	GetCompanyForUser(ctx context.Context, userID pgtype.UUID) (JobhubCompany, error)
 	GetPublicJob(ctx context.Context, arg GetPublicJobParams) (JobhubJob, error)
+	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (JobhubUser, error)
+	GetUserByNormalizedEmail(ctx context.Context, normalizedEmail string) (JobhubUser, error)
 	ImportedJobExists(ctx context.Context, arg ImportedJobExistsParams) (bool, error)
 	ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]JobhubJob, error)
+	RevokeSession(ctx context.Context, id pgtype.UUID) error
 	UpsertImportedJob(ctx context.Context, arg UpsertImportedJobParams) (pgtype.UUID, error)
 }
 
