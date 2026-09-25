@@ -11,15 +11,16 @@ interface CitySelectProps {
   error?: string;
   legacyLabel?: string;
   className?: string;
+  visuallyHiddenLabel?: boolean;
 }
 
-export function CitySelect({ value = "", onChange, label, anyLabel, required, error, legacyLabel, className = "" }: CitySelectProps) {
+export function CitySelect({ value = "", onChange, label, anyLabel, required, error, legacyLabel, className = "", visuallyHiddenLabel = false }: CitySelectProps) {
   const id = useId();
   const { i18n } = useTranslation();
   const unknownValue = Boolean(value) && !kazakhstanCities.some((city) => city.id === value);
   return (
     <div className={`ui-field city-select ${className}`}>
-      <label className="ui-label" htmlFor={id}>{label}</label>
+      <label className={visuallyHiddenLabel ? "ui-label visually-hidden" : "ui-label"} htmlFor={id}>{label}</label>
       <select id={id} className="ui-input ui-select" value={value} required={required} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={(event) => onChange(event.target.value)}>
         <option value="">{anyLabel ?? "—"}</option>
         {unknownValue ? <option value={value}>{legacyLabel ?? value}</option> : null}

@@ -89,19 +89,19 @@
 .market-search--hero,
 .market-search--compact { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) auto; align-items: end; }
 .market-search--without-city { grid-template-columns: minmax(0, 1fr) auto; }
-.market-search--hero { max-width: 64rem; margin-inline: auto; }
+.market-search--hero { max-width: 64rem; margin-inline: auto; --search-control-height: 3.5rem; }
 .market-search__field { display: grid; gap: var(--space-2); min-width: 0; color: var(--color-text-primary); font-family: var(--font-display); font-size: var(--text-14); font-weight: 700; }
 .market-search--hero .market-search__field > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .market-search__control { position: relative; display: block; }
 .market-search__control > svg { position: absolute; top: 50%; left: var(--space-4); color: var(--color-text-muted); transform: translateY(-50%); pointer-events: none; }
 .market-search__control input { width: 100%; min-height: 3.25rem; padding: 0 var(--space-4) 0 3rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text-primary); font-family: var(--font-body); font-size: var(--text-16); font-weight: 400; transition: border-color var(--transition-fast), box-shadow var(--transition-fast); }
-.market-search--hero .market-search__control input { min-height: 3.75rem; font-size: var(--text-18); }
-.market-search--hero .city-select select { min-height: 3.75rem; font-size: var(--text-18); }
+.market-search--hero .market-search__control input { min-height: var(--search-control-height); font-size: var(--text-18); }
+.market-search--hero .city-select select { min-height: var(--search-control-height); padding-right: var(--space-10); font-size: var(--text-18); }
 .market-search__control input:hover { border-color: var(--color-text-muted); }
 .market-search__control input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); outline: 0; }
 .market-search__field small { color: var(--color-error); font-family: var(--font-body); font-weight: 600; }
 .market-search__submit { min-width: 9.5rem; }
-.market-search--hero .market-search__submit { min-height: 3.75rem; }
+.market-search--hero .market-search__submit { min-height: var(--search-control-height); }
 .market-search--stacked { grid-template-columns: 1fr; }
 
 .latest-jobs { padding-block: clamp(3rem, 7vw, 5rem); }
@@ -143,7 +143,7 @@
 .jobs-page__header h1 { margin-bottom: var(--space-2); font-size: clamp(var(--text-32), 4vw, var(--text-40)); }
 .jobs-page__header p { margin: 0; color: var(--color-text-secondary); }
 .mobile-filter-button { display: none; }
-.jobs-workspace { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-8); align-items: start; margin-top: var(--space-8); }
+.jobs-workspace { display: grid; grid-template-columns: 17.5rem minmax(0, 1fr); gap: var(--space-8); align-items: start; margin-top: var(--space-8); }
 .filter-rail { position: sticky; top: var(--space-6); padding: var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
 .filter-rail__heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); }
 .filter-rail h2 { margin: 0; font-size: var(--text-18); }
@@ -154,9 +154,22 @@
 .filter-rail dd { margin: 0; color: var(--color-text-primary); font-weight: 650; overflow-wrap: anywhere; }
 .filter-rail .ui-button { width: 100%; }
 .job-filters { display: grid; gap: var(--space-5); padding-top: var(--space-5); }
-.filter-fieldset { display: grid; gap: var(--space-2); padding: 0; border: 0; }
-.filter-fieldset legend { margin-bottom: var(--space-1); color: var(--color-text-primary); font-weight: 750; }
-.filter-salary { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: var(--space-2); }
+.job-filters .ui-field { gap: 0.4rem; }
+.job-filters .ui-label,
+.filter-fieldset legend { font-size: var(--text-14); font-weight: 650; }
+.job-filters .ui-input,
+.job-filters .ui-button { min-height: 2.875rem; }
+.job-filters .ui-select { min-width: 0; padding-right: var(--space-8); text-overflow: ellipsis; }
+.job-filters input[type="number"] { appearance: textfield; }
+.job-filters input[type="number"]::-webkit-inner-spin-button,
+.job-filters input[type="number"]::-webkit-outer-spin-button { margin: 0; }
+.filter-fieldset { display: grid; gap: 0.25rem; padding: 0; border: 0; }
+.filter-fieldset legend { margin-bottom: 0.4rem; color: var(--color-text-primary); }
+.filter-fieldset .ui-choice { min-height: 2.25rem; align-items: center; gap: 0.625rem; }
+.filter-fieldset .ui-choice-control { width: 1.25rem; height: 1.25rem; margin-top: 0; }
+.filter-fieldset .ui-choice strong { font-size: var(--text-14); font-weight: 500; }
+.filter-salary { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; align-items: end; gap: var(--space-2); }
+.filter-salary .ui-select { padding-left: 0.625rem; padding-right: 1.5rem; text-overflow: clip; }
 .filter-salary .ui-button { grid-column: 1 / -1; }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
 .active-filters button { display: inline-flex; min-height: 2.25rem; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-text-secondary); cursor: pointer; }
@@ -501,6 +514,7 @@
   .site-nav { gap: var(--space-5); }
   .auth-link--primary { display: none; }
   .candidate-menu-link > strong { display: none; }
+  .jobs-workspace { grid-template-columns: 16.5rem minmax(0, 1fr); gap: var(--space-5); }
   .detail-layout { grid-template-columns: minmax(0, 1fr) 19rem; }
 }
 

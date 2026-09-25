@@ -47,7 +47,7 @@ export function JobSearchForm({ initialValues, onSubmit, variant = "compact", sh
         </span>
         {errors.query ? <small role="alert">{errors.query.message}</small> : null}
       </label>
-      {showCity ? <Controller control={control} name="city" render={({ field }) => <CitySelect className="market-search__field" label={t("search.locationLabel")} anyLabel={t("jobs.anyLocation")} value={field.value} onChange={field.onChange} />} /> : null}
+      {showCity ? <Controller control={control} name="city" render={({ field }) => <CitySelect className="market-search__field" label={t("search.locationLabel")} anyLabel={t("jobs.anyLocation")} value={field.value} onChange={field.onChange} visuallyHiddenLabel={variant === "hero"} />} /> : null}
       <Button className="market-search__submit" size={variant === "hero" ? "lg" : "md"} type="submit" leadingIcon={<Search size={18} aria-hidden="true" />}>
         {t("search.submit")}
       </Button>
