@@ -96,7 +96,7 @@
 .market-search__control > svg { position: absolute; top: 50%; left: var(--space-4); color: var(--color-text-muted); transform: translateY(-50%); pointer-events: none; }
 .market-search__control input { width: 100%; min-height: 3.25rem; padding: 0 var(--space-4) 0 3rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text-primary); font-family: var(--font-body); font-size: var(--text-16); font-weight: 400; transition: border-color var(--transition-fast), box-shadow var(--transition-fast); }
 .market-search--hero .market-search__control input { min-height: var(--search-control-height); font-size: var(--text-18); }
-.market-search--hero .city-select select { min-height: var(--search-control-height); padding-right: var(--space-10); font-size: var(--text-18); }
+.market-search--hero .city-select select { height: var(--search-control-height); min-height: var(--search-control-height); padding-right: var(--space-10); font-size: var(--text-18); }
 .market-search__control input:hover { border-color: var(--color-text-muted); }
 .market-search__control input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); outline: 0; }
 .market-search__field small { color: var(--color-error); font-family: var(--font-body); font-weight: 600; }
@@ -117,7 +117,7 @@
 .job-row + .job-row { border-top: 1px solid var(--color-border); }
 .job-row > .job-save-button { position: absolute; z-index: 2; top: var(--space-4); right: 3.5rem; }
 .job-row__link { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-4); min-width: 0; padding: var(--space-5) var(--space-6); color: inherit; text-decoration: none; transition: background var(--transition-fast), box-shadow var(--transition-fast); }
-.job-row__body { min-width: 0; }
+.job-row__body { min-width: 0; padding-right: 3.25rem; }
 .job-row__link:hover { background: var(--color-background); }
 .job-row__link:focus-visible { outline-offset: -3px; }
 .job-row h3 { margin: 0 0 var(--space-2); color: var(--color-text-primary); font-size: var(--text-20); }
@@ -610,7 +610,6 @@
   .job-row h3 { font-size: var(--text-18); }
   .job-row__link { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-3); }
   .job-row > .job-save-button { right: var(--space-4); }
-  .job-row__body { padding-right: 3.25rem; }
   .job-row__arrow { display: none; }
   .company-logo--list { width: 2.5rem; height: 2.5rem; padding: 0.3rem; }
   .company-logo--detail { width: 3rem; height: 3rem; }
