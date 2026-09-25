@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/html"
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/providers"
+	"jobhub-ai/backend/internal/safety"
 )
 
 const MaxRequests = 30
@@ -36,31 +37,35 @@ func (netResolver) LookupIP(ctx context.Context, network, host string) ([]net.IP
 }
 
 type Result struct {
-	ID                string
-	Domain            string
-	CareerURL         string
-	ATS               string
-	ProviderKey       string
-	ATSURL            string
-	ATSConfidence     string
-	DetectionSource   string
-	ScanMethod        string
-	PagesLoaded       int
-	BrowserRequests   int
-	ListRequests      int
-	DetailRequests    int
-	PagesFetched      int
-	DetailUnavailable int
-	StartedAt         time.Time
-	CompletedAt       time.Time
-	Status            string
-	ErrorCategory     string
-	RequestCount      int
-	VacancyURLs       int
-	Parsed            int
-	Skipped           int
-	Warnings          []string
-	Items             []jobs.ImportedJob
+	ID                       string
+	Domain                   string
+	CareerURL                string
+	ATS                      string
+	ProviderKey              string
+	ATSURL                   string
+	ATSConfidence            string
+	DetectionSource          string
+	ScanMethod               string
+	PagesLoaded              int
+	BrowserRequests          int
+	BrowserMaxRequests       int
+	BrowserRemainingRequests int
+	ListRequests             int
+	DetailRequests           int
+	PagesFetched             int
+	DetailUnavailable        int
+	MaxRequests              int
+	RemainingRequests        int
+	StartedAt                time.Time
+	CompletedAt              time.Time
+	Status                   string
+	ErrorCategory            string
+	RequestCount             int
+	VacancyURLs              int
+	Parsed                   int
+	Skipped                  int
+	Warnings                 []string
+	Items                    []jobs.ImportedJob
 }
 
 type Scanner struct {
@@ -77,13 +82,15 @@ type BrowserRenderer interface {
 }
 
 type BrowserResult struct {
-	FinalURL     string
-	PagesLoaded  int
-	RequestCount int
-	VacancyURLs  int
-	Skipped      int
-	Warnings     []string
-	Items        []jobs.ImportedJob
+	FinalURL          string
+	PagesLoaded       int
+	RequestCount      int
+	MaxRequests       int
+	RemainingRequests int
+	VacancyURLs       int
+	Skipped           int
+	Warnings          []string
+	Items             []jobs.ImportedJob
 }
 
 func New(client *http.Client) *Scanner {
@@ -152,6 +159,8 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		out.DetectionSource = "domain"
 		collected, collectErr := s.adapters[provider].Collect(ctx, "careers", MaxVacancies)
 		out.RequestCount = collected.Requests
+		out.MaxRequests = collected.MaxRequests
+		out.RemainingRequests = collected.RemainingRequests
 		out.ListRequests = collected.ListRequests
 		out.DetailRequests = collected.DetailRequests
 		out.PagesFetched = collected.PagesFetched
@@ -169,9 +178,14 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		out.ScanMethod = "ats"
 		return out, nil
 	}
-	budget := &fetchBudget{remaining: s.maxRequests}
+	budget := newFetchBudget(s.maxRequests)
+	defer func() {
+		m := budget.value.Metrics()
+		out.RequestCount = m.RequestsUsed
+		out.MaxRequests = m.MaxRequests
+		out.RemainingRequests = m.Remaining
+	}()
 	home, final, err := s.fetch(ctx, root, budget)
-	out.RequestCount = s.maxRequests - budget.remaining
 	if err != nil {
 		out.ErrorCategory = category(err)
 		return out, err
@@ -181,11 +195,9 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 	if detection.Provider == "greenhouse" && detection.URL != "" {
 		atsURL, _ := url.Parse(detection.URL)
 		parts := strings.Split(strings.Trim(atsURL.Path, "/"), "/")
-		if len(parts) > 0 && parts[0] != "" && budget.remaining > 0 {
-			budget.remaining--
+		if len(parts) > 0 && parts[0] != "" && budget.value.Acquire() == nil {
 			if adapter := s.adapters["greenhouse"]; adapter != nil {
 				collected, collectErr := adapter.Collect(ctx, parts[0], MaxVacancies)
-				out.RequestCount = s.maxRequests - budget.remaining
 				if collectErr == nil {
 					out.CareerURL = atsURL.String()
 					out.Items = collected.Items
@@ -207,14 +219,12 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		if body, _, mapErr := s.fetch(ctx, &sitemap, budget); mapErr == nil {
 			links = sitemapCareerLinks(final, body)
 		}
-		out.RequestCount = s.maxRequests - budget.remaining
 	}
 	career := final
 	careerBody := home
 	careerFetched := false
 	for _, candidate := range links {
 		body, candidateFinal, candidateErr := s.fetch(ctx, candidate, budget)
-		out.RequestCount = s.maxRequests - budget.remaining
 		if candidateErr != nil {
 			continue
 		}
@@ -226,7 +236,6 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 	if !careerFetched {
 		for _, candidate := range commonCareerCandidates(final) {
 			body, candidateFinal, candidateErr := s.fetch(ctx, candidate, budget)
-			out.RequestCount = s.maxRequests - budget.remaining
 			if candidateErr != nil {
 				continue
 			}
@@ -250,7 +259,6 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 				break
 			}
 			body, finalJob, fetchErr := s.fetch(ctx, jobURL, budget)
-			out.RequestCount = s.maxRequests - budget.remaining
 			if fetchErr != nil {
 				out.Skipped++
 				continue
@@ -286,6 +294,8 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		browserResult, browserErr := s.browser.Scan(ctx, career, out.Domain)
 		out.PagesLoaded = browserResult.PagesLoaded
 		out.BrowserRequests = browserResult.RequestCount
+		out.BrowserMaxRequests = browserResult.MaxRequests
+		out.BrowserRemainingRequests = browserResult.RemainingRequests
 		out.Warnings = append(out.Warnings, browserResult.Warnings...)
 		if browserErr != nil {
 			out.Warnings = append(out.Warnings, strings.ToLower(category(browserErr)))
@@ -326,7 +336,13 @@ func looksLikeSPA(pages ...[]byte) bool {
 	return false
 }
 
-type fetchBudget struct{ remaining int }
+type fetchBudget struct{ value *safety.RequestBudget }
+
+func newFetchBudget(max int) *fetchBudget {
+	b, _ := safety.NewRequestBudget(max)
+	return &fetchBudget{b}
+}
+
 type scanError string
 
 func (e scanError) Error() string { return string(e) }
@@ -339,10 +355,6 @@ func category(err error) string {
 }
 
 func (s *Scanner) fetch(ctx context.Context, target *url.URL, budget *fetchBudget) ([]byte, *url.URL, error) {
-	if budget.remaining <= 0 {
-		return nil, nil, scanError("REQUEST_LIMIT")
-	}
-	budget.remaining--
 	if _, err := ValidateURL(ctx, target.String(), s.resolver); err != nil {
 		return nil, nil, scanError("UNSAFE_URL")
 	}
@@ -352,15 +364,17 @@ func (s *Scanner) fetch(ctx context.Context, target *url.URL, budget *fetchBudge
 	}
 	req.Header.Set("User-Agent", "JobHub-Website-Scanner/1.0 (+https://jobhub.kz)")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	if budget.value.Acquire() != nil {
+		return nil, nil, scanError("REQUEST_LIMIT")
+	}
 	client := *s.client
 	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
 			return scanError("TOO_MANY_REDIRECTS")
 		}
-		if budget.remaining <= 0 {
+		if budget.value.Acquire() != nil {
 			return scanError("REQUEST_LIMIT")
 		}
-		budget.remaining--
 		_, e := ValidateURL(r.Context(), r.URL.String(), s.resolver)
 		return e
 	}

@@ -64,7 +64,7 @@ func TestRedirectSafetyAndLimits(t *testing.T) {
 			return res, nil
 		})}
 		s := newScanner(client, publicResolver, 3, 100)
-		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{remaining: 3})
+		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), newFetchBudget(3))
 		if category(err) != "UNSAFE_URL" {
 			t.Fatalf("unsafe redirect accepted: %v", err)
 		}
@@ -76,7 +76,7 @@ func TestRedirectSafetyAndLimits(t *testing.T) {
 			return res, nil
 		})}
 		s := newScanner(client, publicResolver, 20, 100)
-		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{remaining: 20})
+		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), newFetchBudget(20))
 		if category(err) != "TOO_MANY_REDIRECTS" {
 			t.Fatalf("got %v", err)
 		}
@@ -86,14 +86,16 @@ func TestRedirectSafetyAndLimits(t *testing.T) {
 			return response(200, strings.Repeat("x", 11), "text/html", r), nil
 		})}
 		s := newScanner(client, publicResolver, 2, 10)
-		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{remaining: 2})
+		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), newFetchBudget(2))
 		if category(err) != "RESPONSE_TOO_LARGE" {
 			t.Fatalf("got %v", err)
 		}
 	})
 	t.Run("request limit", func(t *testing.T) {
 		s := newScanner(&http.Client{}, publicResolver, 1, 10)
-		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{})
+		budget := newFetchBudget(1)
+		_ = budget.value.Acquire()
+		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), budget)
 		if category(err) != "REQUEST_LIMIT" {
 			t.Fatalf("got %v", err)
 		}
@@ -101,7 +103,7 @@ func TestRedirectSafetyAndLimits(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) { return nil, context.DeadlineExceeded })}
 		s := newScanner(client, publicResolver, 2, 10)
-		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), &fetchBudget{remaining: 2})
+		_, _, err := s.fetch(context.Background(), mustURL(t, "https://example.com"), newFetchBudget(2))
 		if category(err) != "TRANSPORT_FAILED" {
 			t.Fatalf("got %v", err)
 		}
@@ -189,7 +191,7 @@ func TestScanCountsActualRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.RequestCount != 2 || count != 2 || result.Parsed != 1 || result.Items[0].CompanyNameRaw != "" || result.Items[0].SalaryRaw != "" {
+	if result.RequestCount != 2 || result.MaxRequests != MaxRequests || result.RemainingRequests != MaxRequests-2 || count != 2 || result.Parsed != 1 || result.Items[0].CompanyNameRaw != "" || result.Items[0].SalaryRaw != "" {
 		t.Fatalf("unexpected result: %#v count=%d", result, count)
 	}
 }
@@ -222,7 +224,7 @@ func TestBrowserFallbackSkippedWhenStaticDataExists(t *testing.T) {
 
 func TestBrowserLimits(t *testing.T) {
 	r := NewChromiumRenderer("")
-	if r.maxPages != MaxBrowserPages || r.maxBytes != MaxRenderedBytes || r.timeout != BrowserScanTimeout || r.maxPages > 8 || r.timeout > 30*time.Second {
+	if r.maxPages != MaxBrowserPages || r.maxBytes != MaxRenderedBytes || r.timeout != BrowserScanTimeout || r.maxPages > 8 || r.timeout > 30*time.Second || MaxBrowserRequests != 100 {
 		t.Fatalf("unsafe browser limits: %#v", r)
 	}
 }

@@ -34,7 +34,7 @@ func TestListMappingWithoutUnneededDetail(t *testing.T) {
 		return response(r, 200, "["+full+"]"), nil
 	})})
 	got, err := c.Collect(context.Background())
-	if err != nil || calls != 1 || got.Requests != 1 || got.ListRequests != 1 || got.DetailRequests != 0 || got.Fetched != 1 || len(got.Items) != 1 || got.Complete {
+	if err != nil || calls != 1 || got.Requests != 1 || got.MaxRequests != 10 || got.RequestsUsed != 1 || got.RemainingRequests != 9 || got.ListRequests != 1 || got.DetailRequests != 0 || got.Fetched != 1 || len(got.Items) != 1 || got.Complete {
 		t.Fatalf("%+v %v", got, err)
 	}
 	j := got.Items[0]

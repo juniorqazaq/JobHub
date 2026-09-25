@@ -41,7 +41,7 @@ func TestFetchAndDeterministicLosslessNormalization(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, err := c.Collect(context.Background())
-	if err != nil || !reflect.DeepEqual(first, second) {
+	if err != nil || !reflect.DeepEqual(first.Items, second.Items) {
 		t.Fatalf("nondeterministic: %v", err)
 	}
 	if first.Requests != 1 || first.Fetched != 1 || len(first.Items) != 1 || !first.Complete {

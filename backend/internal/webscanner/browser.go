@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	cdpbrowser "github.com/chromedp/cdproto/browser"
@@ -15,11 +14,13 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"jobhub-ai/backend/internal/jobs"
+	"jobhub-ai/backend/internal/safety"
 )
 
 const (
 	MaxBrowserPages    = 8
 	MaxRenderedBytes   = 3 << 20
+	MaxBrowserRequests = 100
 	BrowserScanTimeout = 30 * time.Second
 )
 
@@ -41,6 +42,13 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 	}
 	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
+	requestBudget, _ := safety.NewRequestBudget(MaxBrowserRequests)
+	defer func() {
+		m := requestBudget.Metrics()
+		out.RequestCount = m.RequestsUsed
+		out.MaxRequests = m.MaxRequests
+		out.RemainingRequests = m.Remaining
+	}()
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
 		chromedp.Flag("disable-extensions", true),
@@ -56,7 +64,6 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 	browserCtx, cancelBrowser := chromedp.NewContext(allocator)
 	defer cancelBrowser()
 
-	var requests atomic.Int64
 	var blockedErr error
 	var blockedMu sync.Mutex
 	chromedp.ListenTarget(browserCtx, func(event any) {
@@ -64,7 +71,6 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 		if !ok {
 			return
 		}
-		requests.Add(1)
 		go func() {
 			executor := cdp.WithExecutor(browserCtx, chromedp.FromContext(browserCtx).Target)
 			requestURL := paused.Request.URL
@@ -79,6 +85,10 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 					blockedErr = scanError("UNSAFE_URL")
 				}
 				blockedMu.Unlock()
+				_ = fetch.FailRequest(paused.RequestID, network.ErrorReasonBlockedByClient).Do(executor)
+				return
+			}
+			if requestBudget.Acquire() != nil {
 				_ = fetch.FailRequest(paused.RequestID, network.ErrorReasonBlockedByClient).Do(executor)
 				return
 			}
@@ -133,7 +143,6 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 
 	body, finalURL, loadErr := load(target.String())
 	if loadErr != nil {
-		out.RequestCount = int(requests.Load())
 		return out, loadErr
 	}
 	out.FinalURL = finalURL
@@ -143,7 +152,6 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 	if len(items) > 0 {
 		out.Items = dedupe(items)
 		out.VacancyURLs = len(out.Items)
-		out.RequestCount = int(requests.Load())
 		return out, nil
 	}
 	out.VacancyURLs = len(links)
@@ -171,6 +179,5 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 		out.Items = append(out.Items, parsed[0])
 	}
 	out.Items = dedupe(out.Items)
-	out.RequestCount = int(requests.Load())
 	return out, nil
 }

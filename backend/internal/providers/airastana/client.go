@@ -14,6 +14,7 @@ import (
 
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/providers"
+	"jobhub-ai/backend/internal/safety"
 )
 
 const (
@@ -25,9 +26,10 @@ const (
 var idPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type Client struct {
-	http                 *http.Client
-	maxRequests, maxJobs int
-	maxDetailRequests    int
+	http              *http.Client
+	budget            *safety.RequestBudget
+	maxJobs           int
+	maxDetailRequests int
 }
 
 func NewClient(maxRequests, maxJobs int, client *http.Client) (*Client, error) {
@@ -47,7 +49,8 @@ func NewClientWithDetailLimit(maxRequests, maxJobs, maxDetails int, client *http
 	c := *client
 	c.Timeout = 20 * time.Second
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Client{&c, maxRequests, maxJobs, maxDetails}, nil
+	budget, _ := safety.NewRequestBudget(maxRequests)
+	return &Client{&c, budget, maxJobs, maxDetails}, nil
 }
 func (*Client) Source() string { return Source }
 
@@ -63,8 +66,13 @@ type vacancy struct {
 	FinalDate    string `json:"FinalDate"`
 }
 
-func (c *Client) Collect(ctx context.Context) (providers.Result, error) {
-	result := providers.Result{}
+func (c *Client) Collect(ctx context.Context) (result providers.Result, err error) {
+	defer func() {
+		m := c.budget.Metrics()
+		result.MaxRequests = m.MaxRequests
+		result.RequestsUsed = m.RequestsUsed
+		result.RemainingRequests = m.Remaining
+	}()
 	body, status, err := c.request(ctx, http.MethodPost, baseURL+"/api/v1/vacancies/get", []byte("{}"), &result, true)
 	if err != nil {
 		return result, err
@@ -85,7 +93,7 @@ func (c *Client) Collect(ctx context.Context) (providers.Result, error) {
 			continue
 		}
 		if strings.TrimSpace(v.Description) == "" {
-			if result.DetailRequests < c.maxDetailRequests && result.Requests < c.maxRequests {
+			if result.DetailRequests < c.maxDetailRequests && c.budget.Metrics().Remaining > 0 {
 				detailBody, _, detailErr := c.request(ctx, http.MethodGet, baseURL+"/api/v1/vacancies/"+url.PathEscape(v.ID), nil, &result, false)
 				if detailErr == nil {
 					var detail vacancy
@@ -115,7 +123,7 @@ func (c *Client) Collect(ctx context.Context) (providers.Result, error) {
 }
 func (c *Client) request(ctx context.Context, method, rawURL string, payload []byte, result *providers.Result, list bool) ([]byte, int, error) {
 	for attempt := 0; attempt < 2; attempt++ {
-		if result.Requests >= c.maxRequests {
+		if c.budget.Acquire() != nil {
 			return nil, 0, providers.Failure("REQUEST_BUDGET_EXHAUSTED")
 		}
 		result.Requests++
@@ -138,7 +146,7 @@ func (c *Client) request(ctx context.Context, method, rawURL string, payload []b
 		if err != nil {
 			return nil, 0, providers.Failure("TRANSPORT_FAILED")
 		}
-		if (res.StatusCode == 429 || res.StatusCode >= 500) && attempt == 0 && result.Requests < c.maxRequests {
+		if (res.StatusCode == 429 || res.StatusCode >= 500) && attempt == 0 && c.budget.Metrics().Remaining > 0 {
 			res.Body.Close()
 			continue
 		}

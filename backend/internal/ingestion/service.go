@@ -51,6 +51,9 @@ type Report struct {
 	DetailRequests    int              `json:"detail_requests"`
 	PagesFetched      int              `json:"pages_fetched"`
 	DetailUnavailable int              `json:"detail_unavailable"`
+	MaxRequests       int              `json:"max_requests"`
+	RequestsUsed      int              `json:"requests_used"`
+	RemainingRequests int              `json:"remaining"`
 	FailureCategory   string           `json:"failure_category,omitempty"`
 	Samples           []Sample         `json:"samples"`
 }
@@ -105,6 +108,9 @@ func (s *Service) Run(ctx context.Context, p providers.VacancyProvider, opts Run
 	report.DetailRequests = result.DetailRequests
 	report.PagesFetched = result.PagesFetched
 	report.DetailUnavailable = result.DetailUnavailable
+	report.MaxRequests = result.MaxRequests
+	report.RequestsUsed = result.RequestsUsed
+	report.RemainingRequests = result.RemainingRequests
 	if err != nil {
 		report.CompleteSnapshot = false
 		return fail(providers.Category(err))

@@ -35,7 +35,7 @@ func TestCollectPaginationAndMapping(t *testing.T) {
 		return response(r, 200, `{"content":[`+record(900719926)+`],"number":1,"size":50,"totalElements":2,"totalPages":2,"numberOfElements":1,"first":false,"last":true}`), nil
 	})})
 	got, err := c.Collect(context.Background())
-	if err != nil || calls != 2 || got.Requests != 2 || got.ListRequests != 2 || got.PagesFetched != 2 || got.Fetched != 2 || len(got.Items) != 2 || !got.Complete {
+	if err != nil || calls != 2 || got.Requests != 2 || got.MaxRequests != 5 || got.RequestsUsed != 2 || got.RemainingRequests != 3 || got.ListRequests != 2 || got.PagesFetched != 2 || got.Fetched != 2 || len(got.Items) != 2 || !got.Complete {
 		t.Fatalf("%+v %v", got, err)
 	}
 	j := got.Items[0]

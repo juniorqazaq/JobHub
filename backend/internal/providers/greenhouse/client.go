@@ -17,6 +17,7 @@ import (
 	htmlparser "golang.org/x/net/html"
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/providers"
+	"jobhub-ai/backend/internal/safety"
 )
 
 const endpoint = "https://boards-api.greenhouse.io/v1/boards/"
@@ -28,24 +29,20 @@ var idPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
 // Budget is shared across all boards and runs in one POC invocation.
 // Attempts and raw records (including malformed/duplicate jobs) consume it.
 type Budget struct {
-	mu                                   sync.Mutex
-	requests, jobs, maxRequests, maxJobs int
+	mu            sync.Mutex
+	requests      *safety.RequestBudget
+	jobs, maxJobs int
 }
 
 func NewBudget(requests, jobs int) (*Budget, error) {
 	if requests < 1 || requests > 12 || jobs < 1 || jobs > 200 {
 		return nil, providers.Failure("INVALID_BUDGET")
 	}
-	return &Budget{maxRequests: requests, maxJobs: jobs}, nil
+	requestBudget, _ := safety.NewRequestBudget(requests)
+	return &Budget{requests: requestBudget, maxJobs: jobs}, nil
 }
 func (b *Budget) request() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.requests >= b.maxRequests {
-		return false
-	}
-	b.requests++
-	return true
+	return b.requests.Acquire() == nil
 }
 func (b *Budget) records(n int) bool {
 	b.mu.Lock()
@@ -78,8 +75,13 @@ func NewClient(board string, budget *Budget, client *http.Client) (*Client, erro
 	return &Client{board: board, budget: budget, http: &copyClient}, nil
 }
 func (c *Client) Source() string { return "greenhouse:" + c.board }
-func (c *Client) Collect(ctx context.Context) (providers.Result, error) {
-	result := providers.Result{}
+func (c *Client) Collect(ctx context.Context) (result providers.Result, err error) {
+	defer func() {
+		m := c.budget.requests.Metrics()
+		result.MaxRequests = m.MaxRequests
+		result.RequestsUsed = m.RequestsUsed
+		result.RemainingRequests = m.Remaining
+	}()
 	if !c.budget.request() {
 		return result, providers.Failure("REQUEST_BUDGET_EXHAUSTED")
 	}

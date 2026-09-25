@@ -14,6 +14,7 @@ import (
 
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/providers"
+	"jobhub-ai/backend/internal/safety"
 )
 
 const (
@@ -24,8 +25,9 @@ const (
 )
 
 type Client struct {
-	http                 *http.Client
-	maxRequests, maxJobs int
+	http    *http.Client
+	budget  *safety.RequestBudget
+	maxJobs int
 }
 
 func NewClient(maxRequests, maxJobs int, client *http.Client) (*Client, error) {
@@ -38,7 +40,8 @@ func NewClient(maxRequests, maxJobs int, client *http.Client) (*Client, error) {
 	c := *client
 	c.Timeout = 20 * time.Second
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Client{http: &c, maxRequests: maxRequests, maxJobs: maxJobs}, nil
+	budget, _ := safety.NewRequestBudget(maxRequests)
+	return &Client{http: &c, budget: budget, maxJobs: maxJobs}, nil
 }
 func (*Client) Source() string { return Source }
 
@@ -74,16 +77,21 @@ type named struct {
 	NameEN string `json:"nameEn"`
 }
 
-func (c *Client) Collect(ctx context.Context) (providers.Result, error) {
-	result := providers.Result{}
+func (c *Client) Collect(ctx context.Context) (result providers.Result, err error) {
+	defer func() {
+		m := c.budget.Metrics()
+		result.MaxRequests = m.MaxRequests
+		result.RequestsUsed = m.RequestsUsed
+		result.RemainingRequests = m.Remaining
+	}()
 	for page := 0; ; page++ {
-		if result.Requests >= c.maxRequests {
-			return result, providers.Failure("REQUEST_BUDGET_EXHAUSTED")
-		}
 		var decoded pageResponse
 		attempts := 0
 		for {
 			attempts++
+			if c.budget.Acquire() != nil {
+				return result, providers.Failure("REQUEST_BUDGET_EXHAUSTED")
+			}
 			result.Requests++
 			result.ListRequests++
 			rawURL := baseURL + "/api/jobs?isPublic=true&statusJob=PUBLISHED&page=" + strconv.Itoa(page) + "&size=" + strconv.Itoa(pageSize)
@@ -94,7 +102,7 @@ func (c *Client) Collect(ctx context.Context) (providers.Result, error) {
 			if err != nil {
 				return result, providers.Failure("TRANSPORT_FAILED")
 			}
-			if (res.StatusCode == http.StatusTooManyRequests || res.StatusCode >= 500) && attempts < 2 && result.Requests < c.maxRequests {
+			if (res.StatusCode == http.StatusTooManyRequests || res.StatusCode >= 500) && attempts < 2 && c.budget.Metrics().Remaining > 0 {
 				res.Body.Close()
 				continue
 			}

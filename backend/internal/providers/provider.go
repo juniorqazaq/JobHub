@@ -15,6 +15,9 @@ type Result struct {
 	DetailRequests    int
 	PagesFetched      int
 	DetailUnavailable int
+	MaxRequests       int
+	RequestsUsed      int
+	RemainingRequests int
 	Fetched           int
 	Malformed         int
 	Skipped           int
