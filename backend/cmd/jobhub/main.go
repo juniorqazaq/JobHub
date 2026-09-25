@@ -21,6 +21,7 @@ import (
 	"jobhub-ai/backend/internal/providers/airastana"
 	"jobhub-ai/backend/internal/providers/greenhouse"
 	"jobhub-ai/backend/internal/providers/kcell"
+	"jobhub-ai/backend/internal/providers/staticcareers"
 )
 
 func main() {
@@ -62,19 +63,19 @@ func run(args []string, out, logs io.Writer, getenv func(string) string) error {
 		return err
 	}
 	type selection struct {
-		source, provider, display, board string
-		authorized                       bool
+		source, provider, display, board, listingURL, detailPrefix, company string
+		authorized                                                          bool
 	}
 	selected := []selection{}
 	for _, board := range cfg.Boards {
 		if *source == "" || *source == "greenhouse:"+board.BoardToken {
-			selected = append(selected, selection{"greenhouse:" + board.BoardToken, "greenhouse", board.DisplayName, board.BoardToken, board.AuthorizedForPOC})
+			selected = append(selected, selection{"greenhouse:" + board.BoardToken, "greenhouse", board.DisplayName, board.BoardToken, "", "", "", board.AuthorizedForPOC})
 		}
 	}
 	for _, career := range cfg.CareerSources {
 		id := career.Provider + ":careers"
 		if *source == "" || *source == id {
-			selected = append(selected, selection{id, career.Provider, career.DisplayName, "", career.AuthorizedForPOC})
+			selected = append(selected, selection{id, career.Provider, career.DisplayName, "", career.ListingURL, career.DetailPrefix, career.Company, career.AuthorizedForPOC})
 		}
 	}
 	if len(selected) == 0 || (*fixture != "" && len(selected) != 1) {
@@ -149,6 +150,8 @@ func run(args []string, out, logs io.Writer, getenv func(string) string) error {
 			p, err = kcell.NewClient(min(cfg.MaxRequests, 5), cfg.MaxJobs, client)
 		case "airastana":
 			p, err = airastana.NewClient(min(cfg.MaxRequests, 10), cfg.MaxJobs, client)
+		case "halyk", "technodom", "kolesa":
+			p, err = staticcareers.New(staticcareers.Config{Source: id, Company: selectedSource.company, ListingURL: selectedSource.listingURL, DetailPrefix: selectedSource.detailPrefix}, cfg.MaxRequests, cfg.MaxJobs, client)
 		default:
 			return errors.New("unsupported provider")
 		}

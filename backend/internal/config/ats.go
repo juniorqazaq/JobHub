@@ -26,6 +26,9 @@ type CareerSource struct {
 	Provider         string `json:"provider"`
 	DisplayName      string `json:"display_name"`
 	AuthorizedForPOC bool   `json:"authorized_for_poc"`
+	ListingURL       string `json:"listing_url,omitempty"`
+	DetailPrefix     string `json:"detail_prefix,omitempty"`
+	Company          string `json:"company,omitempty"`
 }
 
 func LoadATS(path string) (ATSConfig, error) {
@@ -50,7 +53,7 @@ func LoadATS(path string) (ATSConfig, error) {
 	if c.MaxJobs == 0 {
 		c.MaxJobs = 200
 	}
-	if c.MaxRequests < 1 || c.MaxRequests > 12 || c.MaxJobs < 1 || c.MaxJobs > 200 || len(c.Boards) > 3 || len(c.Boards)+len(c.CareerSources) < 1 || len(c.CareerSources) > 2 {
+	if c.MaxRequests < 1 || c.MaxRequests > 12 || c.MaxJobs < 1 || c.MaxJobs > 200 || len(c.Boards) > 3 || len(c.Boards)+len(c.CareerSources) < 1 || len(c.CareerSources) > 5 {
 		return c, errors.New("ATS POC limits exceeded")
 	}
 	seen := map[string]bool{}
@@ -70,12 +73,21 @@ func LoadATS(path string) (ATSConfig, error) {
 		return c, errors.New("at most two boards and one test board are permitted")
 	}
 	for _, s := range c.CareerSources {
-		if (s.Provider != "kcell" && s.Provider != "airastana") || strings.TrimSpace(s.DisplayName) == "" || seen[s.Provider+":careers"] {
+		if !allowedCareerProvider(s.Provider) || strings.TrimSpace(s.DisplayName) == "" || seen[s.Provider+":careers"] {
 			return c, errors.New("invalid or duplicate career source")
 		}
 		seen[s.Provider+":careers"] = true
 	}
 	return c, nil
+}
+
+func allowedCareerProvider(provider string) bool {
+	switch provider {
+	case "kcell", "airastana", "halyk", "technodom", "kolesa":
+		return true
+	default:
+		return false
+	}
 }
 
 // ValidateATSDevelopmentDatabase intentionally accepts only explicit loopback
