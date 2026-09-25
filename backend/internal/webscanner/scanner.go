@@ -43,6 +43,9 @@ type Result struct {
 	ATSURL          string
 	ATSConfidence   string
 	DetectionSource string
+	ScanMethod      string
+	PagesLoaded     int
+	BrowserRequests int
 	StartedAt       time.Time
 	CompletedAt     time.Time
 	Status          string
@@ -61,10 +64,32 @@ type Scanner struct {
 	maxRequests int
 	maxBytes    int64
 	adapters    adapterRegistry
+	browser     BrowserRenderer
+}
+
+type BrowserRenderer interface {
+	Scan(context.Context, *url.URL, string) (BrowserResult, error)
+}
+
+type BrowserResult struct {
+	FinalURL     string
+	PagesLoaded  int
+	RequestCount int
+	VacancyURLs  int
+	Skipped      int
+	Warnings     []string
+	Items        []jobs.ImportedJob
 }
 
 func New(client *http.Client) *Scanner {
 	return newScanner(client, netResolver{}, MaxRequests, MaxResponseBytes)
+}
+
+// NewWithBrowser keeps the renderer optional and outside the normal HTTP path.
+func NewWithBrowser(client *http.Client, browser BrowserRenderer) *Scanner {
+	s := New(client)
+	s.browser = browser
+	return s
 }
 func newScanner(client *http.Client, resolver Resolver, maxRequests int, maxBytes int64) *Scanner {
 	if client == nil {
@@ -106,6 +131,7 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 	out.StartedAt = time.Now().UTC()
 	out.ID = scanID(out.StartedAt)
 	out.Status = "failed"
+	out.ScanMethod = "unsupported"
 	defer func() { out.CompletedAt = time.Now().UTC() }()
 	root, err := ValidateURL(ctx, raw, s.resolver)
 	if err != nil {
@@ -137,6 +163,7 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 					out.Parsed = len(collected.Items)
 					out.Skipped = collected.Skipped + collected.Malformed
 					out.Status = "succeeded"
+					out.ScanMethod = "ats"
 					return out, nil
 				}
 			}
@@ -221,7 +248,41 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 	out.Skipped += len(items) - len(out.Items)
 	out.Status = "succeeded"
 	out.ErrorCategory = ""
+	if out.Parsed > 0 {
+		out.ScanMethod = "static"
+		return out, nil
+	}
+	if s.browser != nil && looksLikeSPA(home, careerBody) {
+		browserResult, browserErr := s.browser.Scan(ctx, career, out.Domain)
+		out.PagesLoaded = browserResult.PagesLoaded
+		out.BrowserRequests = browserResult.RequestCount
+		out.Warnings = append(out.Warnings, browserResult.Warnings...)
+		if browserErr != nil {
+			out.Warnings = append(out.Warnings, strings.ToLower(category(browserErr)))
+			return out, nil
+		}
+		out.CareerURL = browserResult.FinalURL
+		out.VacancyURLs = browserResult.VacancyURLs
+		out.Skipped += browserResult.Skipped
+		out.Items = dedupe(browserResult.Items)
+		out.Parsed = len(out.Items)
+		if out.Parsed > 0 {
+			out.ScanMethod = "browser"
+		} else {
+			out.Warnings = append(out.Warnings, "rendered_vacancies_not_found")
+		}
+	}
 	return out, nil
+}
+
+func looksLikeSPA(pages ...[]byte) bool {
+	for _, body := range pages {
+		text := strings.ToLower(string(body))
+		if strings.Contains(text, "<script") && (strings.Contains(text, `id="root"`) || strings.Contains(text, `id="app"`) || strings.Contains(text, "<app-root") || strings.Contains(text, "type=\"module\"") || strings.Contains(text, "type='module'")) {
+			return true
+		}
+	}
+	return false
 }
 
 type fetchBudget struct{ remaining int }

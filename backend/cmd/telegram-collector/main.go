@@ -77,7 +77,11 @@ func run(ctx context.Context, logger *slog.Logger, args []string) error {
 		store = jobs.NewPostgresStore(pool)
 	}
 	processor := telegramcollector.NewProcessor(cfg.Allowed, store, store, logger)
-	commands := telegramcollector.NewCommandProcessor(cfg.Admins, webscanner.New(&http.Client{}), client, logger)
+	var websiteScanner telegramcollector.WebsiteScanner = webscanner.New(&http.Client{})
+	if os.Getenv("WEBSITE_SCANNER_BROWSER_ENABLED") == "true" {
+		websiteScanner = webscanner.NewWithBrowser(&http.Client{}, webscanner.NewChromiumRenderer(os.Getenv("WEBSITE_SCANNER_CHROME_PATH")))
+	}
+	commands := telegramcollector.NewCommandProcessor(cfg.Admins, websiteScanner, client, logger)
 	offset, err := telegramprovider.LoadOffset(cfg.OffsetFile)
 	if err != nil {
 		return err

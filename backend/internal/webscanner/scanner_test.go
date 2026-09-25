@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"jobhub-ai/backend/internal/jobs"
 )
 
 type resolverFunc func(context.Context, string, string) ([]net.IP, error)
@@ -41,6 +43,17 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func response(code int, body, contentType string, req *http.Request) *http.Response {
 	return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{"Content-Type": []string{contentType}}, Request: req}
+}
+
+type fakeBrowser struct {
+	calls  int
+	result BrowserResult
+	err    error
+}
+
+func (f *fakeBrowser) Scan(context.Context, *url.URL, string) (BrowserResult, error) {
+	f.calls++
+	return f.result, f.err
 }
 
 func TestRedirectSafetyAndLimits(t *testing.T) {
@@ -178,6 +191,39 @@ func TestScanCountsActualRequests(t *testing.T) {
 	}
 	if result.RequestCount != 2 || count != 2 || result.Parsed != 1 || result.Items[0].CompanyNameRaw != "" || result.Items[0].SalaryRaw != "" {
 		t.Fatalf("unexpected result: %#v count=%d", result, count)
+	}
+}
+
+func TestBrowserFallbackOnlyForUnproductiveSPA(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return response(200, `<html><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>`, "text/html", r), nil
+	})}
+	browser := &fakeBrowser{result: BrowserResult{FinalURL: "https://example.kz/careers", PagesLoaded: 2, RequestCount: 7, VacancyURLs: 1, Items: []jobs.ImportedJob{{Source: "website:example.kz", ExternalID: "https://example.kz/jobs/1", SourceURL: "https://example.kz/jobs/1", Title: "Engineer"}}}}
+	s := newScanner(client, publicResolver, 2, MaxResponseBytes)
+	s.browser = browser
+	result, err := s.Scan(context.Background(), "https://example.kz")
+	if err != nil || browser.calls != 1 || result.ScanMethod != "browser" || result.PagesLoaded != 2 || result.BrowserRequests != 7 || result.Parsed != 1 {
+		t.Fatalf("fallback failed: result=%#v calls=%d err=%v", result, browser.calls, err)
+	}
+}
+
+func TestBrowserFallbackSkippedWhenStaticDataExists(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return response(200, `<div id="root"></div><script type="module"></script><script type="application/ld+json">{"@type":"JobPosting","title":"Engineer","url":"/jobs/1"}</script>`, "text/html", r), nil
+	})}
+	browser := &fakeBrowser{}
+	s := newScanner(client, publicResolver, 2, MaxResponseBytes)
+	s.browser = browser
+	result, err := s.Scan(context.Background(), "https://example.kz")
+	if err != nil || browser.calls != 0 || result.ScanMethod != "static" || result.Parsed != 1 {
+		t.Fatalf("static scan invoked browser: result=%#v calls=%d err=%v", result, browser.calls, err)
+	}
+}
+
+func TestBrowserLimits(t *testing.T) {
+	r := NewChromiumRenderer("")
+	if r.maxPages != MaxBrowserPages || r.maxBytes != MaxRenderedBytes || r.timeout != BrowserScanTimeout || r.maxPages > 8 || r.timeout > 30*time.Second {
+		t.Fatalf("unsafe browser limits: %#v", r)
 	}
 }
 

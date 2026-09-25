@@ -141,7 +141,7 @@ func scanSummary(lang string, r webscanner.Result) string {
 		sample = append(sample, "• "+x.Title)
 	}
 	if ru(lang) {
-		return fmt.Sprintf("Сканирование завершено\n\nСайт: %s\nCareer: %s\nПровайдер: %s\nЗапросов: %d\nНайдено вакансий: %d\nРаспознано: %d\nПропущено: %d\n\n%s\n\nDry-run: в JobHub ничего не записано.", r.Domain, career, ats, r.RequestCount, r.VacancyURLs, r.Parsed, r.Skipped, strings.Join(sample, "\n"))
+		return fmt.Sprintf("Сканирование завершено\n\nСайт: %s\nCareer: %s\nМетод: %s\nПровайдер: %s\nHTTP-запросов: %d\nСтраниц браузера: %d\nЗапросов браузера: %d\nНайдено вакансий: %d\nРаспознано: %d\nПропущено: %d\n\n%s\n\nDry-run: в JobHub ничего не записано.", r.Domain, career, r.ScanMethod, ats, r.RequestCount, r.PagesLoaded, r.BrowserRequests, r.VacancyURLs, r.Parsed, r.Skipped, strings.Join(sample, "\n"))
 	}
-	return fmt.Sprintf("Сканерлеу аяқталды\n\nСайт: %s\nCareer: %s\nПровайдер: %s\nСұрау: %d\nВакансия табылды: %d\nТанылды: %d\nӨткізілді: %d\n\n%s\n\nDry-run: JobHub-қа ештеңе қосылған жоқ.", r.Domain, career, ats, r.RequestCount, r.VacancyURLs, r.Parsed, r.Skipped, strings.Join(sample, "\n"))
+	return fmt.Sprintf("Сканерлеу аяқталды\n\nСайт: %s\nCareer: %s\nӘдіс: %s\nПровайдер: %s\nHTTP сұрауы: %d\nБраузер беті: %d\nБраузер сұрауы: %d\nВакансия табылды: %d\nТанылды: %d\nӨткізілді: %d\n\n%s\n\nDry-run: JobHub-қа ештеңе қосылған жоқ.", r.Domain, career, r.ScanMethod, ats, r.RequestCount, r.PagesLoaded, r.BrowserRequests, r.VacancyURLs, r.Parsed, r.Skipped, strings.Join(sample, "\n"))
 }
