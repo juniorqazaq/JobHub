@@ -6,10 +6,16 @@ const experiences: ExperienceLevel[] = ["no_experience", "junior", "middle", "se
 const employments: EmploymentType[] = ["full_time", "part_time", "contract", "temporary", "internship"];
 const dates = ["24h", "3d", "7d", "30d"] as const;
 
-function positiveNumber(value: string | null): number | undefined {
+function nonnegativeNumber(value: string | null): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function positiveInteger(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 export function parseJobSearchParams(params: URLSearchParams): JobSearchParams {
@@ -19,20 +25,20 @@ export function parseJobSearchParams(params: URLSearchParams): JobSearchParams {
   const experience = params.get("experience");
   const employment = params.get("employment");
   const datePosted = params.get("date_posted");
-  const salaryMin = positiveNumber(params.get("salary_min"));
-  const currency = params.get("currency");
+  const salaryMin = nonnegativeNumber(params.get("salary_min"));
+  const currency = params.get("currency")?.toUpperCase();
   const sort: JobSort = rawSort === "oldest" ? "oldest" : "newest";
   return {
     query: params.get("q") || undefined,
     city: isCityId(rawCity) ? rawCity : undefined,
     workModes: [...new Set(rawWorkModes)],
     salaryMin,
-    currency: salaryMin && (currency === "KZT" || currency === "USD" || currency === "EUR") ? currency : undefined,
+    currency: salaryMin != null && (currency === "KZT" || currency === "USD" || currency === "EUR") ? currency : undefined,
     experience: experiences.includes(experience as ExperienceLevel) ? experience as ExperienceLevel : undefined,
     employment: employments.includes(employment as EmploymentType) ? employment as EmploymentType : undefined,
     datePosted: dates.includes(datePosted as (typeof dates)[number]) ? datePosted as JobSearchParams["datePosted"] : undefined,
     sort,
-    page: positiveNumber(params.get("page")) ?? 1,
+    page: positiveInteger(params.get("page")) ?? 1,
   };
 }
 
