@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"jobhub-ai/backend/internal/config"
 	"jobhub-ai/backend/internal/database"
 	"jobhub-ai/backend/internal/handlers"
 	"jobhub-ai/backend/internal/jobs"
@@ -26,6 +27,9 @@ func TestPostgresImportIsAtomicAndIdempotent(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	if err := config.ValidateLocalPOCDatabase("development", databaseURL); err != nil {
+		t.Skip("integration test requires an isolated local POC database")
 	}
 	ctx := context.Background()
 	pool, err := database.Connect(ctx, databaseURL, "cache_statement")

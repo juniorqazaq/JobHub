@@ -2,10 +2,8 @@ package config
 
 import (
 	"errors"
-	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -69,18 +67,5 @@ func LoadTelegram() (TelegramConfig, error) {
 }
 
 func ValidateTelegramDevelopmentDatabase(environment, raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || environment != "development" || (u.Scheme != "postgres" && u.Scheme != "postgresql") || (u.Hostname() != "127.0.0.1" && u.Hostname() != "::1") || u.Port() == "" || u.Fragment != "" || !regexp.MustCompile(`^/jobhub_telegram_poc_[A-Za-z0-9_]+$`).MatchString(u.Path) {
-		return errors.New("Telegram ingestion requires APP_ENV=development and an explicit loopback jobhub_telegram_poc_* database")
-	}
-	q, err := url.ParseQuery(u.RawQuery)
-	if err != nil {
-		return errors.New("invalid development database options")
-	}
-	for key := range q {
-		if key != "sslmode" {
-			return errors.New("database connection overrides are not allowed")
-		}
-	}
-	return nil
+	return ValidateLocalPOCDatabase(environment, raw)
 }
