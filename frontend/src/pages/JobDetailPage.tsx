@@ -9,6 +9,8 @@ import { JobSaveButton } from "../components/jobs/JobSaveButton";
 import { ApplyAction } from "../components/jobs/ApplyAction";
 import { formatSalary } from "../lib/formatSalary";
 import { displayJobLocation } from "../lib/jobLocation";
+import { companyPresentationFor } from "../lib/companyPresentation";
+import { CompanyLogo } from "../components/jobs/CompanyLogo";
 
 interface DetailLocationState { from?: string }
 
@@ -28,8 +30,11 @@ export function JobDetailPage() {
         {job.data ? <div className="detail-layout">
           <article className="detail-content">
             <header>
+              <div className="detail-company-identity">
+                <CompanyLogo job={job.data} size="detail" />
+                <strong>{companyPresentationFor(job.data).name || t("common.notProvided")}</strong>
+              </div>
               <h1>{job.data.title}</h1>
-              <p className="detail-company">{job.data.company.name || t("common.notProvided")}</p>
               <div className="detail-facts">
                 <span><MapPin size={19} aria-hidden="true" />{displayJobLocation(job.data, i18n.language) || t("common.notProvided")}</span>
                 {job.data.salaryRaw || job.data.salary ? <strong>{job.data.salaryRaw || formatSalary(job.data.salary!, i18n.language, t(`employer.salaryPeriods.${job.data.salary!.period}`))}</strong> : null}

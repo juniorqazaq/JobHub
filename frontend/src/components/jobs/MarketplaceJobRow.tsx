@@ -5,21 +5,25 @@ import type { JobSummary } from "../../api/models/job";
 import { JobSaveButton } from "./JobSaveButton";
 import { formatSalary } from "../../lib/formatSalary";
 import { displayJobLocation } from "../../lib/jobLocation";
+import { companyPresentationFor } from "../../lib/companyPresentation";
+import { CompanyLogo } from "./CompanyLogo";
 
 export function MarketplaceJobRow({ job }: { job: JobSummary }) {
   const { t, i18n } = useTranslation();
   const location = useLocation();
   const external = job.source.type === "external";
   const posted = formatDate(job.postedAt, i18n.language);
+  const company = companyPresentationFor(job);
 
   return (
     <article className="job-row">
       <JobSaveButton job={job} compact />
       <Link className="job-row__link" to={`/jobs/${job.id}`} state={{ from: `${location.pathname}${location.search}` }}>
+        <CompanyLogo job={job} />
         <div className="job-row__body">
           <h3>{job.title}</h3>
           <div className="job-row__facts">
-            <span><BriefcaseBusiness size={16} aria-hidden="true" />{job.company.name || t("common.notProvided")}</span>
+            <span><BriefcaseBusiness size={16} aria-hidden="true" />{company.name || t("common.notProvided")}</span>
             <span><MapPin size={16} aria-hidden="true" />{displayJobLocation(job, i18n.language) || t("common.notProvided")}</span>
             {job.employmentType ? <span>{job.source.type === "native" ? t(`employer.employmentTypes.${job.employmentType}`) : job.employmentType}</span> : null}
           </div>
