@@ -9,12 +9,16 @@ import (
 )
 
 type Result struct {
-	Items     []jobs.ImportedJob
-	Requests  int
-	Fetched   int
-	Malformed int
-	Skipped   int
-	Complete  bool
+	Items             []jobs.ImportedJob
+	Requests          int
+	ListRequests      int
+	DetailRequests    int
+	PagesFetched      int
+	DetailUnavailable int
+	Fetched           int
+	Malformed         int
+	Skipped           int
+	Complete          bool
 }
 
 type VacancyProvider interface {

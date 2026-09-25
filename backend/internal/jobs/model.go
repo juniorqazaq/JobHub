@@ -10,20 +10,23 @@ var ErrNotFound = errors.New("job not found")
 var ErrInvalidTransition = errors.New("invalid job status transition")
 
 type ImportedJob struct {
-	Source             string
-	ExternalID         string
-	SourceURL          string
-	UpstreamSourceName string
-	CompanyNameRaw     string
-	Title              string
-	LocationRaw        string
-	CanonicalCityID    string
-	Description        string
-	DescriptionKind    string
-	EmploymentTypeRaw  string
-	SalaryRaw          string
-	ExternalUpdatedAt  *time.Time
-	ExternalUpdatedRaw string
+	Source              string
+	ExternalID          string
+	SourceURL           string
+	UpstreamSourceName  string
+	CompanyNameRaw      string
+	Title               string
+	LocationRaw         string
+	CanonicalCityID     string
+	Description         string
+	DescriptionKind     string
+	EmploymentTypeRaw   string
+	SalaryRaw           string
+	Category            string
+	ExternalPublishedAt *time.Time
+	ExternalUpdatedAt   *time.Time
+	ExternalUpdatedRaw  string
+	ExternalExpiresAt   *time.Time
 }
 
 type Job struct {
