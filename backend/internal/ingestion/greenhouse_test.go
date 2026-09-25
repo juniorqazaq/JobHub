@@ -52,3 +52,18 @@ func TestMalformedSourceCannotCrossProviderBoundary(t *testing.T) {
 		t.Fatalf("%+v %v", r, err)
 	}
 }
+
+func TestRunNormalizesCityInSharedProviderPath(t *testing.T) {
+	svc := NewService(nil, nil, nil, 0)
+	item := jobs.ImportedJob{Source: "greenhouse:fixture", ExternalID: "42", Title: "Engineer", SourceURL: "https://example.com/jobs/42", LocationRaw: "г. Астана", DescriptionKind: "full"}
+	report, err := svc.Run(context.Background(), collection{result: providers.Result{Items: []jobs.ImportedJob{item}, Fetched: 1}}, RunOptions{DryRun: true, Sample: 1})
+	if err != nil || report.Stats.NormalizedCount != 1 || len(report.Samples) != 1 || report.Samples[0].CanonicalCityID == nil || *report.Samples[0].CanonicalCityID != "astana" {
+		t.Fatalf("unexpected report: %+v %v", report, err)
+	}
+
+	item.LocationRaw = "Астана, Алматы"
+	report, err = svc.Run(context.Background(), collection{result: providers.Result{Items: []jobs.ImportedJob{item}, Fetched: 1}}, RunOptions{DryRun: true, Sample: 1})
+	if err != nil || report.Stats.NormalizedCount != 1 || len(report.Samples) != 1 || report.Samples[0].CanonicalCityID != nil {
+		t.Fatalf("ambiguous raw location should remain valid with no canonical city: %+v %v", report, err)
+	}
+}

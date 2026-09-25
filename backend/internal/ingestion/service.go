@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"jobhub-ai/backend/internal/jobs"
+	"jobhub-ai/backend/internal/locations"
 	"jobhub-ai/backend/internal/providers"
 	"jobhub-ai/backend/internal/providers/jooble"
 )
@@ -62,6 +63,7 @@ type Sample struct {
 	Title             string     `json:"title"`
 	Company           *string    `json:"company"`
 	Location          *string    `json:"location"`
+	CanonicalCityID   *string    `json:"canonical_city_id"`
 	DescriptionKind   string     `json:"description_kind"`
 	ApplicationMethod string     `json:"application_method"`
 	ApplicationURL    string     `json:"application_url_redacted"`
@@ -117,8 +119,11 @@ func (s *Service) Run(ctx context.Context, p providers.VacancyProvider, opts Run
 	}
 	unique := map[string]jobs.ImportedJob{}
 	for _, item := range result.Items {
+		if item.CanonicalCityID == "" {
+			item.CanonicalCityID = locations.Normalize(item.LocationRaw)
+		}
 		parsed, err := url.Parse(item.SourceURL)
-		if item.Source != p.Source() || strings.TrimSpace(item.ExternalID) == "" || strings.TrimSpace(item.Title) == "" || err != nil || parsed.Hostname() == "" || parsed.User != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || (item.DescriptionKind != "full" && item.DescriptionKind != "snippet") {
+		if item.Source != p.Source() || strings.TrimSpace(item.ExternalID) == "" || strings.TrimSpace(item.Title) == "" || (item.CanonicalCityID != "" && !locations.Valid(item.CanonicalCityID)) || err != nil || parsed.Hostname() == "" || parsed.User != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || (item.DescriptionKind != "full" && item.DescriptionKind != "snippet") {
 			report.Malformed++
 			report.Stats.SkippedCount++
 			report.CompleteSnapshot = false
@@ -145,7 +150,7 @@ func (s *Service) Run(ctx context.Context, p providers.VacancyProvider, opts Run
 			u, _ := url.Parse(item.SourceURL)
 			u.RawQuery = ""
 			u.Fragment = ""
-			report.Samples = append(report.Samples, Sample{ExternalID: id, Title: item.Title, Company: optional(item.CompanyNameRaw), Location: optional(item.LocationRaw), DescriptionKind: item.DescriptionKind, ApplicationMethod: "external", ApplicationURL: u.String(), UpdatedAt: item.ExternalUpdatedAt})
+			report.Samples = append(report.Samples, Sample{ExternalID: id, Title: item.Title, Company: optional(item.CompanyNameRaw), Location: optional(item.LocationRaw), CanonicalCityID: optional(item.CanonicalCityID), DescriptionKind: item.DescriptionKind, ApplicationMethod: "external", ApplicationURL: u.String(), UpdatedAt: item.ExternalUpdatedAt})
 		}
 	}
 	if opts.DryRun {

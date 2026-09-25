@@ -5,6 +5,14 @@ import (
 	"unicode"
 )
 
+type MatchStatus string
+
+const (
+	MatchMatched   MatchStatus = "matched"
+	MatchAmbiguous MatchStatus = "ambiguous"
+	MatchUnknown   MatchStatus = "unknown"
+)
+
 type City struct {
 	ID string
 	KK string
@@ -58,16 +66,21 @@ func Name(id, language string) string {
 // Normalize maps only an exact city alias, optionally followed by the country.
 // Regions, free-form places and multi-city locations remain unclassified.
 func Normalize(value string) string {
-	key := normalize(value)
+	id, _ := Classify(value)
+	return id
+}
+
+// Classify distinguishes an unknown location from an explicitly ambiguous
+// multi-location value so maintenance tools can report both without guessing.
+func Classify(value string) (string, MatchStatus) {
+	key := canonicalCandidate(value)
 	if id := aliases[key]; id != "" {
-		return id
+		return id, MatchMatched
 	}
-	for _, country := range []string{"kazakhstan", "казахстан", "қазақстан"} {
-		if city, found := strings.CutSuffix(key, " "+country); found {
-			return aliases[city]
-		}
+	if isAmbiguousLocation(value) {
+		return "", MatchAmbiguous
 	}
-	return ""
+	return "", MatchUnknown
 }
 
 func buildAliases() map[string]string {
@@ -89,13 +102,46 @@ func buildAliases() map[string]string {
 
 func normalize(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
-	return strings.Map(func(r rune) rune {
+	value = strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			return r
 		}
-		if unicode.IsSpace(r) || r == '-' {
-			return ' '
+		return ' '
+	}, value)
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func canonicalCandidate(value string) string {
+	key := normalize(value)
+	for _, prefix := range []string{"г ", "город ", "қ ", "қала ", "city "} {
+		key = strings.TrimPrefix(key, prefix)
+	}
+	for _, country := range []string{"kazakhstan", "казахстан", "қазақстан"} {
+		key = strings.TrimSuffix(key, " "+country)
+	}
+	return strings.TrimSpace(key)
+}
+
+func isAmbiguousLocation(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	for _, separator := range []string{" немесе ", " және ", " или ", " and ", " or ", " / ", "/", ",", ";", "|"} {
+		lower = strings.ReplaceAll(lower, separator, "|")
+	}
+	parts := strings.Split(lower, "|")
+	if len(parts) < 2 {
+		return false
+	}
+	meaningful := 0
+	hasLocationSignal := false
+	for _, part := range parts {
+		key := canonicalCandidate(part)
+		if key == "" {
+			continue
 		}
-		return -1
-	}, strings.Join(strings.Fields(value), " "))
+		meaningful++
+		if aliases[key] != "" || key == "remote" || key == "удаленно" || key == "қашықтан" {
+			hasLocationSignal = true
+		}
+	}
+	return meaningful > 1 && hasLocationSignal
 }
