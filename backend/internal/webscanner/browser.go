@@ -25,15 +25,26 @@ const (
 )
 
 type ChromiumRenderer struct {
-	resolver Resolver
-	execPath string
-	timeout  time.Duration
-	maxPages int
-	maxBytes int
+	resolver    Resolver
+	execPath    string
+	timeout     time.Duration
+	maxPages    int
+	maxBytes    int
+	maxRequests int
 }
 
 func NewChromiumRenderer(execPath string) *ChromiumRenderer {
-	return &ChromiumRenderer{resolver: netResolver{}, execPath: strings.TrimSpace(execPath), timeout: BrowserScanTimeout, maxPages: MaxBrowserPages, maxBytes: MaxRenderedBytes}
+	return NewChromiumRendererWithRequestLimit(execPath, MaxBrowserRequests)
+}
+
+// NewChromiumRendererWithRequestLimit keeps the global browser ceiling while
+// allowing callers to impose a stricter per-scan budget.
+func NewChromiumRendererWithRequestLimit(execPath string, requested int) *ChromiumRenderer {
+	effective := MaxBrowserRequests
+	if requested > 0 && requested < effective {
+		effective = requested
+	}
+	return &ChromiumRenderer{resolver: netResolver{}, execPath: strings.TrimSpace(execPath), timeout: BrowserScanTimeout, maxPages: MaxBrowserPages, maxBytes: MaxRenderedBytes, maxRequests: effective}
 }
 
 func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain string) (out BrowserResult, err error) {
@@ -42,7 +53,7 @@ func (r *ChromiumRenderer) Scan(parent context.Context, target *url.URL, domain 
 	}
 	ctx, cancel := context.WithTimeout(parent, r.timeout)
 	defer cancel()
-	requestBudget, _ := safety.NewRequestBudget(MaxBrowserRequests)
+	requestBudget, _ := safety.NewRequestBudget(r.maxRequests)
 	defer func() {
 		m := requestBudget.Metrics()
 		out.RequestCount = m.RequestsUsed

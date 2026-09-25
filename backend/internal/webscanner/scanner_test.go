@@ -224,8 +224,27 @@ func TestBrowserFallbackSkippedWhenStaticDataExists(t *testing.T) {
 
 func TestBrowserLimits(t *testing.T) {
 	r := NewChromiumRenderer("")
-	if r.maxPages != MaxBrowserPages || r.maxBytes != MaxRenderedBytes || r.timeout != BrowserScanTimeout || r.maxPages > 8 || r.timeout > 30*time.Second || MaxBrowserRequests != 100 {
+	if r.maxPages != MaxBrowserPages || r.maxBytes != MaxRenderedBytes || r.timeout != BrowserScanTimeout || r.maxPages > 8 || r.timeout > 30*time.Second || r.maxRequests != MaxBrowserRequests || MaxBrowserRequests != 100 {
 		t.Fatalf("unsafe browser limits: %#v", r)
+	}
+}
+
+func TestChromiumRendererRequestLimitIsOnlyLowerable(t *testing.T) {
+	tests := []struct {
+		requested int
+		want      int
+	}{
+		{requested: 40, want: 40},
+		{requested: 100, want: 100},
+		{requested: 200, want: 100},
+		{requested: 0, want: 100},
+		{requested: -1, want: 100},
+	}
+	for _, tt := range tests {
+		r := NewChromiumRendererWithRequestLimit("", tt.requested)
+		if r.maxRequests != tt.want {
+			t.Fatalf("requested %d: maxRequests=%d, want %d", tt.requested, r.maxRequests, tt.want)
+		}
 	}
 }
 
