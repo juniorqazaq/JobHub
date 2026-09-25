@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/net/html"
 	"jobhub-ai/backend/internal/jobs"
+	"jobhub-ai/backend/internal/providers"
 )
 
 const MaxRequests = 30
@@ -35,27 +36,31 @@ func (netResolver) LookupIP(ctx context.Context, network, host string) ([]net.IP
 }
 
 type Result struct {
-	ID              string
-	Domain          string
-	CareerURL       string
-	ATS             string
-	ProviderKey     string
-	ATSURL          string
-	ATSConfidence   string
-	DetectionSource string
-	ScanMethod      string
-	PagesLoaded     int
-	BrowserRequests int
-	StartedAt       time.Time
-	CompletedAt     time.Time
-	Status          string
-	ErrorCategory   string
-	RequestCount    int
-	VacancyURLs     int
-	Parsed          int
-	Skipped         int
-	Warnings        []string
-	Items           []jobs.ImportedJob
+	ID                string
+	Domain            string
+	CareerURL         string
+	ATS               string
+	ProviderKey       string
+	ATSURL            string
+	ATSConfidence     string
+	DetectionSource   string
+	ScanMethod        string
+	PagesLoaded       int
+	BrowserRequests   int
+	ListRequests      int
+	DetailRequests    int
+	PagesFetched      int
+	DetailUnavailable int
+	StartedAt         time.Time
+	CompletedAt       time.Time
+	Status            string
+	ErrorCategory     string
+	RequestCount      int
+	VacancyURLs       int
+	Parsed            int
+	Skipped           int
+	Warnings          []string
+	Items             []jobs.ImportedJob
 }
 
 type Scanner struct {
@@ -139,6 +144,31 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		return out, err
 	}
 	out.Domain = NormalizeDomain(root.Hostname())
+	if provider, ok := knownCareerProvider(out.Domain); ok {
+		out.ATS = provider
+		out.ProviderKey = "careers"
+		out.ATSURL = root.String()
+		out.ATSConfidence = "high"
+		out.DetectionSource = "domain"
+		collected, collectErr := s.adapters[provider].Collect(ctx, "careers", MaxVacancies)
+		out.RequestCount = collected.Requests
+		out.ListRequests = collected.ListRequests
+		out.DetailRequests = collected.DetailRequests
+		out.PagesFetched = collected.PagesFetched
+		out.DetailUnavailable = collected.DetailUnavailable
+		out.Items = collected.Items
+		out.VacancyURLs = collected.Fetched
+		out.Parsed = len(collected.Items)
+		out.Skipped = collected.Skipped + collected.Malformed
+		out.CareerURL = root.String()
+		if collectErr != nil {
+			out.ErrorCategory = providers.Category(collectErr)
+			return out, collectErr
+		}
+		out.Status = "succeeded"
+		out.ScanMethod = "ats"
+		return out, nil
+	}
 	budget := &fetchBudget{remaining: s.maxRequests}
 	home, final, err := s.fetch(ctx, root, budget)
 	out.RequestCount = s.maxRequests - budget.remaining
@@ -273,6 +303,17 @@ func (s *Scanner) Scan(ctx context.Context, raw string) (out Result, err error) 
 		}
 	}
 	return out, nil
+}
+
+func knownCareerProvider(domain string) (string, bool) {
+	switch domain {
+	case "jobs.kcell.kz":
+		return "kcell", true
+	case "job.airastana.com":
+		return "airastana", true
+	default:
+		return "", false
+	}
 }
 
 func looksLikeSPA(pages ...[]byte) bool {

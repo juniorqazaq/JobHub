@@ -227,6 +227,26 @@ func TestBrowserLimits(t *testing.T) {
 	}
 }
 
+func TestKnownCareerProvidersBypassBrowser(t *testing.T) {
+	cases := []struct{ raw, provider, body string }{
+		{"https://jobs.kcell.kz", "kcell", `{"content":[],"number":0,"size":50,"totalElements":0,"totalPages":0,"numberOfElements":0,"last":true}`},
+		{"https://job.airastana.com", "airastana", `[]`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.provider, func(t *testing.T) {
+			client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return response(200, tc.body, "application/json", r), nil
+			})}
+			browser := &fakeBrowser{}
+			s := NewWithBrowser(client, browser)
+			result, err := s.Scan(context.Background(), tc.raw)
+			if err != nil || result.ATS != tc.provider || result.ScanMethod != "ats" || result.ListRequests != 1 || browser.calls != 0 {
+				t.Fatalf("result=%+v calls=%d err=%v", result, browser.calls, err)
+			}
+		})
+	}
+}
+
 func mustURL(t *testing.T, s string) *url.URL {
 	t.Helper()
 	u, err := url.Parse(s)
