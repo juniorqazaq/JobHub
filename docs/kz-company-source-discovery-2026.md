@@ -50,3 +50,16 @@ No normalized rows were persisted. No browser-rendered sample was produced.
 
 The unresolved set is suitable for a separately approved browser/API diagnostic, capped at five sites and 40 browser/resource requests per site. This document does not authorize that follow-up, an adapter, a source-registry entry, or production enablement. Existing proven Kaspi, Kcell, and Air Astana sources were not rescanned.
 
+## Browser follow-up
+
+The renderer now accepts a caller-requested lower budget. Its effective budget is `min(requested, 100)`; zero or negative requests retain the existing 100-request default. The five selected sites were working, non-blocked, career-specific unresolved entries from the static pass. No API or ATS adapter was implemented.
+
+| Company | Browser | Effective budget | Requests used | Rendered vacancy URLs | API/ATS | Stable ID | Observed count | Classification | Recommended next action |
+|---|---|---:|---:|---:|---|---|---:|---|---|
+| Tele2 | Chromium fallback | 40 | 0 | 0 | none observed | unknown | unknown | JS_SPA_UNRESOLVED | obtain a separately approved public API/network diagnostic |
+| Sulpak | Chromium fallback | 40 | 28 | 0 | none observed | unknown | 0 observable | JS_SPA_UNRESOLVED | inspect an approved public endpoint if one is documented |
+| ERG | Chromium fallback | 40 | 0 | 0 | none observed | unknown | unknown | JS_SPA_UNRESOLVED | obtain a separately approved public API/network diagnostic |
+| Magnum | Chromium fallback | 40 | 0 | 0 | none observed | unknown | unknown | JS_SPA_UNRESOLVED | obtain a separately approved public API/network diagnostic |
+| Kazakhmys | Chromium fallback | 40 | 40 | 0 | none observed | unknown | 0 observable | JS_SPA_UNRESOLVED | investigate only a documented public API or site-provided feed |
+
+Tele2, ERG, and Magnum did not trigger the existing browser fallback because the bounded static pass did not mark their pages as productive SPA candidates. Sulpak and Kazakhmys rendered within the 40-request cap but exposed no normalized vacancy records; Kazakhmys consumed the full cap. No public JSON vacancy payload, stable ID, pagination contract, or ATS endpoint was observed in this diagnostic. “0 observable” means zero records were exposed by the normal rendered DOM/structured-data path, not zero vacancies on the company site.
