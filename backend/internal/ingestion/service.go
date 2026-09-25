@@ -40,15 +40,19 @@ type RunOptions struct {
 	NoAutomaticExpiry bool
 }
 type Report struct {
-	Source           string           `json:"source"`
-	DryRun           bool             `json:"dry_run"`
-	AttemptAt        time.Time        `json:"attempt_at"`
-	Stats            jobs.ImportStats `json:"stats"`
-	Malformed        int              `json:"malformed"`
-	Duplicates       int              `json:"duplicates"`
-	CompleteSnapshot bool             `json:"complete_snapshot"`
-	FailureCategory  string           `json:"failure_category,omitempty"`
-	Samples          []Sample         `json:"samples"`
+	Source            string           `json:"source"`
+	DryRun            bool             `json:"dry_run"`
+	AttemptAt         time.Time        `json:"attempt_at"`
+	Stats             jobs.ImportStats `json:"stats"`
+	Malformed         int              `json:"malformed"`
+	Duplicates        int              `json:"duplicates"`
+	CompleteSnapshot  bool             `json:"complete_snapshot"`
+	ListRequests      int              `json:"list_requests"`
+	DetailRequests    int              `json:"detail_requests"`
+	PagesFetched      int              `json:"pages_fetched"`
+	DetailUnavailable int              `json:"detail_unavailable"`
+	FailureCategory   string           `json:"failure_category,omitempty"`
+	Samples           []Sample         `json:"samples"`
 }
 type Sample struct {
 	ExternalID        string     `json:"external_id"`
@@ -97,6 +101,10 @@ func (s *Service) Run(ctx context.Context, p providers.VacancyProvider, opts Run
 	report.Malformed = result.Malformed
 	report.Stats.SkippedCount = result.Skipped + result.Malformed
 	report.CompleteSnapshot = result.Complete
+	report.ListRequests = result.ListRequests
+	report.DetailRequests = result.DetailRequests
+	report.PagesFetched = result.PagesFetched
+	report.DetailUnavailable = result.DetailUnavailable
 	if err != nil {
 		report.CompleteSnapshot = false
 		return fail(providers.Category(err))

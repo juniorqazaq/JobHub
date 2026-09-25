@@ -72,7 +72,8 @@ func (s *PostgresStore) CompleteIngestionRun(ctx context.Context, runID, source 
 			Title: item.Title, LocationRaw: nullableText(item.LocationRaw), Description: nullableText(item.Description),
 			CanonicalCityID: nullableText(item.CanonicalCityID),
 			DescriptionKind: item.DescriptionKind, EmploymentTypeRaw: nullableText(item.EmploymentTypeRaw),
-			SalaryRaw: nullableText(item.SalaryRaw), ObservedAt: timestamptz(observedAt), FreshUntil: timestamptz(freshUntil),
+			SalaryRaw: nullableText(item.SalaryRaw), Category: nullableText(item.Category), ObservedAt: timestamptz(observedAt), FreshUntil: timestamptz(freshUntil),
+			ExternalPublishedAt: nullableTime(item.ExternalPublishedAt), ExternalExpiresAt: nullableTime(item.ExternalExpiresAt),
 			ExternalUpdatedAt: nullableTime(item.ExternalUpdatedAt), ExternalUpdatedRaw: nullableText(item.ExternalUpdatedRaw),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {

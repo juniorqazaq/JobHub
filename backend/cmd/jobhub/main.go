@@ -17,7 +17,10 @@ import (
 	"jobhub-ai/backend/internal/database"
 	"jobhub-ai/backend/internal/ingestion"
 	"jobhub-ai/backend/internal/jobs"
+	"jobhub-ai/backend/internal/providers"
+	"jobhub-ai/backend/internal/providers/airastana"
 	"jobhub-ai/backend/internal/providers/greenhouse"
+	"jobhub-ai/backend/internal/providers/kcell"
 )
 
 func main() {
@@ -28,7 +31,7 @@ func main() {
 }
 func run(args []string, out, logs io.Writer, getenv func(string) string) error {
 	if len(args) == 0 || args[0] != "collect" {
-		return errors.New("usage: jobhub collect --config <server-config.json> --source greenhouse:<board> --dry-run")
+		return errors.New("usage: jobhub collect --config <server-config.json> --source <provider:source> --dry-run")
 	}
 	flags := flag.NewFlagSet("collect", flag.ContinueOnError)
 	flags.SetOutput(io.Discard) // Parse errors must not echo sensitive arguments.
@@ -58,18 +61,28 @@ func run(args []string, out, logs io.Writer, getenv func(string) string) error {
 	if err != nil {
 		return err
 	}
-	selected := []config.ATSBoard{}
+	type selection struct {
+		source, provider, display, board string
+		authorized                       bool
+	}
+	selected := []selection{}
 	for _, board := range cfg.Boards {
 		if *source == "" || *source == "greenhouse:"+board.BoardToken {
-			selected = append(selected, board)
+			selected = append(selected, selection{"greenhouse:" + board.BoardToken, "greenhouse", board.DisplayName, board.BoardToken, board.AuthorizedForPOC})
+		}
+	}
+	for _, career := range cfg.CareerSources {
+		id := career.Provider + ":careers"
+		if *source == "" || *source == id {
+			selected = append(selected, selection{id, career.Provider, career.DisplayName, "", career.AuthorizedForPOC})
 		}
 	}
 	if len(selected) == 0 || (*fixture != "" && len(selected) != 1) {
 		return errors.New("unknown source or fixture requires one source")
 	}
 	if !*health && *fixture == "" {
-		for _, board := range selected {
-			if !board.AuthorizedForPOC {
+		for _, selectedSource := range selected {
+			if !selectedSource.authorized {
 				return errors.New("source has no recorded POC authorization")
 			}
 		}
@@ -109,8 +122,8 @@ func run(args []string, out, logs io.Writer, getenv func(string) string) error {
 	}
 	encoder := json.NewEncoder(out)
 	encoder.SetIndent("", "  ")
-	for n, board := range selected {
-		id := "greenhouse:" + board.BoardToken
+	for n, selectedSource := range selected {
+		id := selectedSource.source
 		if *health {
 			h, err := store.SourceHealth(ctx, id)
 			if err != nil {
@@ -128,13 +141,23 @@ func run(args []string, out, logs io.Writer, getenv func(string) string) error {
 				return errors.New("collection deadline exceeded")
 			}
 		}
-		p, err := greenhouse.NewClient(board.BoardToken, budget, client)
+		var p providers.VacancyProvider
+		switch selectedSource.provider {
+		case "greenhouse":
+			p, err = greenhouse.NewClient(selectedSource.board, budget, client)
+		case "kcell":
+			p, err = kcell.NewClient(min(cfg.MaxRequests, 5), cfg.MaxJobs, client)
+		case "airastana":
+			p, err = airastana.NewClient(min(cfg.MaxRequests, 10), cfg.MaxJobs, client)
+		default:
+			return errors.New("unsupported provider")
+		}
 		if err != nil {
 			return err
 		}
 		var target jobs.Store
 		if !*dry {
-			if err := store.RegisterDevelopmentSource(ctx, id, "greenhouse", board.DisplayName); err != nil {
+			if err := store.RegisterDevelopmentSource(ctx, id, selectedSource.provider, selectedSource.display); err != nil {
 				return err
 			}
 			target = store

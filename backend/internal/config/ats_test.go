@@ -36,6 +36,8 @@ func TestATSConfigLimits(t *testing.T) {
 		{`{"boards":[{"board_token":"fixture","display_name":"Fixture"},{"board_token":"fixture","display_name":"Other"}]}`, false},
 		{`{"boards":[{"board_token":"a","display_name":"A"},{"board_token":"b","display_name":"B"},{"board_token":"c","display_name":"C"}]}`, false},
 		{`{"boards":[{"board_token":"a","display_name":"A"},{"board_token":"b","display_name":"B"},{"board_token":"c","display_name":"C","test_board":true}]}`, true},
+		{`{"career_sources":[{"provider":"kcell","display_name":"Kcell","authorized_for_poc":true},{"provider":"airastana","display_name":"Air Astana","authorized_for_poc":true}]}`, true},
+		{`{"career_sources":[{"provider":"lever","display_name":"Lever"}]}`, false},
 	} {
 		p := filepath.Join(t.TempDir(), "config.json")
 		if err := os.WriteFile(p, []byte(tc.raw), 0600); err != nil {

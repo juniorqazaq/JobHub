@@ -49,6 +49,7 @@ INSERT INTO jobhub.jobs (
     description_kind,
     employment_type_raw,
     salary_raw,
+    category,
     application_method,
     apply_url,
     source_status,
@@ -56,8 +57,10 @@ INSERT INTO jobhub.jobs (
     last_seen_at,
     last_synced_at,
     fresh_until,
+    external_published_at,
     external_updated_at,
-    external_updated_raw
+    external_updated_raw,
+    external_expires_at
 ) VALUES (
     sqlc.arg(source),
     sqlc.arg(external_id),
@@ -71,6 +74,7 @@ INSERT INTO jobhub.jobs (
     sqlc.arg(description_kind),
     sqlc.narg(employment_type_raw),
     sqlc.narg(salary_raw),
+    sqlc.narg(category),
     'external',
     sqlc.arg(source_url),
     'unknown',
@@ -78,8 +82,10 @@ INSERT INTO jobhub.jobs (
     sqlc.arg(observed_at),
     sqlc.arg(observed_at),
     sqlc.arg(fresh_until),
+    sqlc.narg(external_published_at),
     sqlc.narg(external_updated_at),
-    sqlc.narg(external_updated_raw)
+    sqlc.narg(external_updated_raw),
+    sqlc.narg(external_expires_at)
 )
 ON CONFLICT (source, external_id) DO UPDATE SET
     source_url = EXCLUDED.source_url,
@@ -92,12 +98,15 @@ ON CONFLICT (source, external_id) DO UPDATE SET
     description_kind = EXCLUDED.description_kind,
     employment_type_raw = EXCLUDED.employment_type_raw,
     salary_raw = EXCLUDED.salary_raw,
+    category = EXCLUDED.category,
     apply_url = EXCLUDED.apply_url,
     last_seen_at = EXCLUDED.last_seen_at,
     last_synced_at = EXCLUDED.last_synced_at,
     fresh_until = EXCLUDED.fresh_until,
+    external_published_at = EXCLUDED.external_published_at,
     external_updated_at = EXCLUDED.external_updated_at,
     external_updated_raw = EXCLUDED.external_updated_raw,
+    external_expires_at = EXCLUDED.external_expires_at,
     updated_at = now()
 WHERE jobhub.jobs.last_synced_at <= EXCLUDED.last_synced_at
 RETURNING id;
