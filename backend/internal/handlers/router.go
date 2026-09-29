@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"jobhub-ai/backend/internal/auth"
 	"jobhub-ai/backend/internal/candidates"
+	"jobhub-ai/backend/internal/companies"
 	"jobhub-ai/backend/internal/jobs"
 	"jobhub-ai/backend/internal/middleware"
 	"log/slog"
@@ -15,6 +16,7 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 	var employerJobs jobs.EmployerStore
 	var authService auth.Service
 	var candidateService *candidates.Service
+	var companyStore companies.Store
 	environment := "development"
 	for _, extra := range extras {
 		if value, ok := extra.(jobs.Reader); ok {
@@ -28,6 +30,9 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 		}
 		if value, ok := extra.(*candidates.Service); ok {
 			candidateService = value
+		}
+		if value, ok := extra.(companies.Store); ok {
+			companyStore = value
 		}
 		if value, ok := extra.(string); ok {
 			environment = value
@@ -61,6 +66,9 @@ func NewRouter(health HealthChecker, logger *slog.Logger, origin string, extras 
 	}
 	if authService != nil && candidateService != nil {
 		RegisterCandidateRoutes(router, candidateService, authService, logger, origin)
+	}
+	if companyStore != nil {
+		RegisterCompanyRoutes(router, companyStore, authService, logger, origin)
 	}
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Endpoint not found"}})

@@ -86,12 +86,24 @@ type JobhubCandidateSkill struct {
 }
 
 type JobhubCompany struct {
-	ID         pgtype.UUID
-	Name       string
-	CreatedAt  pgtype.Timestamptz
-	UpdatedAt  pgtype.Timestamptz
-	Status     string
-	IsVerified bool
+	ID          pgtype.UUID
+	Name        string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	Status      string
+	IsVerified  bool
+	Description pgtype.Text
+	WebsiteUrl  pgtype.Text
+	// HTTPS or application-local URL used for the public company profile logo.
+	LogoUrl  pgtype.Text
+	Industry pgtype.Text
+	City     pgtype.Text
+}
+
+type JobhubCompanyFollow struct {
+	CandidateID pgtype.UUID
+	CompanyID   pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
 }
 
 type JobhubCompanyMembership struct {

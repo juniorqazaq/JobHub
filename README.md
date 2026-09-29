@@ -19,6 +19,8 @@ Jooble сейчас используется только как proof of concep
   - `GET /api/v1/health`
   - `GET /api/v1/jobs`
   - `GET /api/v1/jobs/:id`
+  - `GET /api/v1/companies`
+  - `GET /api/v1/companies/:id`
 - Auth API:
   - `POST /api/v1/auth/register`
   - `POST /api/v1/auth/login`
@@ -30,10 +32,12 @@ Jooble сейчас используется только как proof of concep
   - `POST /api/v1/jobs`
   - `PATCH /api/v1/jobs/:id`
   - `DELETE /api/v1/jobs/:id`
+  - `GET /api/v1/employer/company`, `PATCH /api/v1/employer/company`
 - Candidate API:
   - `GET /api/v1/profile`, `PATCH /api/v1/profile`
   - `POST /api/v1/profile/resume`, `GET /api/v1/profile/resume`, `GET /api/v1/profile/resume/content`, `DELETE /api/v1/profile/resume`
   - `GET /api/v1/saved-jobs`, `PUT /api/v1/jobs/:id/saved`, `DELETE /api/v1/jobs/:id/saved`
+  - `GET /api/v1/companies/:id/follow`, `PUT /api/v1/companies/:id/follow`, `DELETE /api/v1/companies/:id/follow`
   - `POST /api/v1/jobs/:id/applications`, `GET /api/v1/applications`, `PATCH /api/v1/applications/:id/withdraw`
 - Employer applicant API:
   - `GET /api/v1/employer/jobs/:id/applications`
@@ -55,7 +59,9 @@ Jooble сейчас используется только как proof of concep
 - Работодатель видит отклики только на вакансии своей компании и переводит их вперед по этапам `sent → viewed → in_review → contacted → interview → offer` или отклоняет.
 - Отклик сохраняет конкретную версию резюме. Замена активного резюме не меняет уже отправленный отклик.
 - Внутренний отклик доступен только для опубликованных собственных вакансий JobHub; Jooble сохраняет внешний CTA.
-- i18n: казахский, русский, английский.
+- Публичный каталог и профили компаний с открытыми вакансиями, verified-статусом и подпиской соискателя.
+- Работодатель может редактировать публичный профиль своей компании; ownership проверяет backend.
+- i18n: казахский и русский. Архитектура ключей сохраняет возможность добавить английский позже.
 
 ## Быстрый запуск локально
 
@@ -70,6 +76,24 @@ Jooble сейчас используется только как proof of concep
 ```sh
 cp .env.example .env
 ```
+
+### Локальный запуск с собранными вакансиями
+
+Если локальная POC-база `jobhub_ats_poc_careers_20260925` уже создана, весь
+проект запускается одной командой без Docker:
+
+```sh
+make dev
+```
+
+Команда всегда запускает backend в `development`-режиме с локальной POC-базой,
+поэтому вакансии Kcell, Air Astana, Technodom, Halyk и Kolesa видны в интерфейсе.
+Она не использует staging Supabase как локальную базу и не меняет данные Supabase.
+Название POC-базы можно переопределить через `JOBHUB_POC_DATABASE`.
+
+Остановить оба процесса можно через `Ctrl+C`.
+
+### Docker-запуск с пустой локальной базой
 
 Запустить PostgreSQL, миграции и backend:
 

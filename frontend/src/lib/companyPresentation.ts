@@ -14,7 +14,7 @@ const sourcePresentations: Record<string, CompanyPresentation> = {
   },
   "airastana:careers": {
     name: "Air Astana",
-    logoUrl: "/company-logos/air-astana.svg",
+    logoUrl: "/company-logos/air-astana-group.png",
     websiteUrl: "https://airastana.com",
   },
   "halyk:careers": {

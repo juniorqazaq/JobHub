@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"jobhub-ai/backend/internal/auth"
 	"jobhub-ai/backend/internal/candidates"
+	"jobhub-ai/backend/internal/companies"
 	"jobhub-ai/backend/internal/config"
 	"jobhub-ai/backend/internal/database"
 	"jobhub-ai/backend/internal/handlers"
@@ -51,7 +52,8 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	candidateService := candidates.NewService(candidates.NewPostgresStore(pool), resumeFiles)
-	router := handlers.NewRouter(services.NewHealthService(pool), logger, cfg.FrontendOrigin, jobStore, authService, candidateService, cfg.Environment)
+	companyStore := companies.NewPostgresStore(pool, cfg.Environment == "production")
+	router := handlers.NewRouter(services.NewHealthService(pool), logger, cfg.FrontendOrigin, jobStore, authService, candidateService, companyStore, cfg.Environment)
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return err
 	}

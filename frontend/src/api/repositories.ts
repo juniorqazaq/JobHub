@@ -8,12 +8,15 @@ import type { JobsRepository } from "./repositories/JobsRepository";
 import type { EmployerJobsRepository } from "./repositories/EmployerJobsRepository";
 import type { CandidateRepository } from "./repositories/CandidateRepository";
 import { HttpCandidateRepository } from "./http/HttpCandidateRepository";
+import { HttpCompaniesRepository } from "./http/HttpCompaniesRepository";
+import type { CompaniesRepository } from "./repositories/CompaniesRepository";
 
 export interface Repositories {
   auth: AuthRepository;
   jobs: JobsRepository;
   employerJobs: EmployerJobsRepository;
   candidate: CandidateRepository;
+  companies: CompaniesRepository;
 }
 
 export const repositories: Repositories = {
@@ -21,4 +24,5 @@ export const repositories: Repositories = {
   jobs: env.useMocks ? new MockJobsRepository() : new HttpJobsRepository(),
   employerJobs: new HttpEmployerJobsRepository(),
   candidate: new HttpCandidateRepository(),
+  companies: new HttpCompaniesRepository(),
 };

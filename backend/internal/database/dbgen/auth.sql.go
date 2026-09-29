@@ -14,7 +14,7 @@ import (
 const createCompany = `-- name: CreateCompany :one
 INSERT INTO jobhub.companies (name)
 VALUES ($1)
-RETURNING id, name, created_at, updated_at, status, is_verified
+RETURNING id, name, created_at, updated_at, status, is_verified, description, website_url, logo_url, industry, city
 `
 
 func (q *Queries) CreateCompany(ctx context.Context, name string) (JobhubCompany, error) {
@@ -27,6 +27,11 @@ func (q *Queries) CreateCompany(ctx context.Context, name string) (JobhubCompany
 		&i.UpdatedAt,
 		&i.Status,
 		&i.IsVerified,
+		&i.Description,
+		&i.WebsiteUrl,
+		&i.LogoUrl,
+		&i.Industry,
+		&i.City,
 	)
 	return i, err
 }
@@ -138,7 +143,7 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context) error {
 }
 
 const getCompanyForUser = `-- name: GetCompanyForUser :one
-SELECT c.id, c.name, c.created_at, c.updated_at, c.status, c.is_verified
+SELECT c.id, c.name, c.created_at, c.updated_at, c.status, c.is_verified, c.description, c.website_url, c.logo_url, c.industry, c.city
 FROM jobhub.companies c
 JOIN jobhub.company_memberships cm ON cm.company_id = c.id
 WHERE cm.user_id = $1
@@ -156,6 +161,11 @@ func (q *Queries) GetCompanyForUser(ctx context.Context, userID pgtype.UUID) (Jo
 		&i.UpdatedAt,
 		&i.Status,
 		&i.IsVerified,
+		&i.Description,
+		&i.WebsiteUrl,
+		&i.LogoUrl,
+		&i.Industry,
+		&i.City,
 	)
 	return i, err
 }
