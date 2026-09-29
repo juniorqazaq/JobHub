@@ -1,16 +1,15 @@
-import { Globe2, LogOut, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { useEffect, type PropsWithChildren } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/authContext";
-import { IconButton } from "../components/ui/Button";
 import { CitySelect } from "../components/location/CitySelect";
 import { isCityId } from "../lib/cities";
 import { setSearchCityPreference, usePreferredSearchCity } from "../lib/searchCityPreference";
 
 type Language = "kk" | "ru";
 
-export function SiteShell({ children }: PropsWithChildren) {
+export function SiteShell({ children, variant = "default" }: PropsWithChildren<{ variant?: "default" | "landing" }>) {
   const { t, i18n } = useTranslation();
   const auth = useAuth();
   const navigate = useNavigate();
@@ -35,11 +34,11 @@ export function SiteShell({ children }: PropsWithChildren) {
   };
 
   return (
-    <div className="site-shell">
+    <div className={`site-shell site-shell--${variant}`}>
       <a className="skip-link" href="#main-content">
         {t("common.skipToContent")}
       </a>
-      <header className="site-header">
+      <header className={`site-header site-header--${variant}`}>
         <div className="page-container site-header__inner">
           <Link className="brand" to="/" aria-label={t("nav.homeLabel")}>
             <img
@@ -59,52 +58,39 @@ export function SiteShell({ children }: PropsWithChildren) {
           </Link>
           <nav className="site-nav" aria-label={t("nav.primaryLabel")}>
             <NavLink to="/jobs">{t("nav.jobs")}</NavLink>
-            {auth.session?.user.role === "employer" ? (
-              <NavLink to="/employer">{t("nav.employer")}</NavLink>
-            ) : null}
+            <NavLink to="/companies">{t("nav.companies")}</NavLink>
             {auth.session?.user.role === "admin" ? (
               <NavLink to="/admin">{t("nav.admin")}</NavLink>
             ) : null}
-            <span className="site-nav__location"><MapPin size={16} aria-hidden="true" /><CitySelect className="header-city-select" label={t("nav.location")} anyLabel={t("jobs.anyLocation")} value={selectedCity} onChange={changeCity} /></span>
           </nav>
           <div className="site-header__actions">
+            <span className="site-nav__location"><MapPin size={16} aria-hidden="true" /><CitySelect className="header-city-select" label={t("nav.location")} anyLabel={t("jobs.anyLocation")} value={selectedCity} onChange={changeCity} /></span>
             <label className="language-select">
               <span className="visually-hidden">{t("common.language")}</span>
-              <Globe2 size={17} aria-hidden="true" />
               <select
                 value={language}
                 onChange={(event) =>
                   void i18n.changeLanguage(event.target.value)
                 }
               >
-                <option value="kk">{t("languages.kk")}</option>
-                <option value="ru">{t("languages.ru")}</option>
+                <option value="kk">KK</option>
+                <option value="ru">RU</option>
               </select>
             </label>
             {auth.session ? (
-              <>
-                <Link
-                  className="candidate-menu-link"
-                  to={
-                    auth.session.user.role === "job_seeker"
-                      ? "/profile"
-                      : "/account"
-                  }
-                >
-                  <span aria-hidden="true">
-                    {initials(auth.session.user.fullName)}
-                  </span>
-                  <strong>{auth.session.user.fullName}</strong>
-                </Link>
-                {auth.session.user.role !== "job_seeker" ? (
-                  <IconButton
-                    label={t("auth.logout")}
-                    icon={<LogOut size={18} />}
-                    variant="quiet"
-                    onClick={() => void auth.logout().then(() => navigate("/"))}
-                  />
-                ) : null}
-              </>
+              <Link
+                className="candidate-menu-link"
+                to={
+                  auth.session.user.role === "job_seeker"
+                    ? "/profile"
+                    : "/account"
+                }
+              >
+                <span aria-hidden="true">
+                  {initials(auth.session.user.fullName)}
+                </span>
+                <strong>{auth.session.user.fullName}</strong>
+              </Link>
             ) : (
               <>
                 <Link className="auth-link" to="/login">
@@ -119,7 +105,7 @@ export function SiteShell({ children }: PropsWithChildren) {
         </div>
       </header>
       <main id="main-content">{children}</main>
-      <footer className="site-footer">
+      <footer className={`site-footer site-footer--${variant}`}>
         <div className="page-container site-footer__inner">
           <Link
             className="brand brand--small"
@@ -136,7 +122,7 @@ export function SiteShell({ children }: PropsWithChildren) {
           </Link>
           <nav aria-label={t("footer.label")}>
             <Link to="/jobs">{t("nav.jobs")}</Link>
-            <span>{t("nav.companies")}</span>
+            <Link to="/companies">{t("nav.companies")}</Link>
             <span>{t("nav.location")}</span>
           </nav>
           <p>{t("footer.copyright", { year: new Date().getFullYear() })}</p>

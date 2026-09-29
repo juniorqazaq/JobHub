@@ -1,14 +1,19 @@
-import { ArrowRight, Building2, UserRoundPen } from "lucide-react";
+import { ArrowRight, Building2, LogOut, UserRoundPen } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../app/authContext";
+import { Button } from "../components/ui/Button";
 import { SiteShell } from "../layouts/SiteShell";
 import type { AuthUser } from "../api/models/auth";
 
 export function AccountPage() {
   const { t } = useTranslation();
-  const { session } = useAuth();
-  const user = session!.user;
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const [logoutPending, setLogoutPending] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const user = auth.session!.user;
 
   if (user.role === "job_seeker") {
     return <Navigate to="/profile#account" replace />;
@@ -20,6 +25,20 @@ export function AccountPage() {
     .slice(0, 2)
     .map((part) => part[0]?.toLocaleUpperCase())
     .join("");
+
+  const logout = async () => {
+    if (logoutPending) return;
+    setLogoutError("");
+    setLogoutPending(true);
+    try {
+      await auth.logout();
+      navigate("/", { replace: true });
+    } catch {
+      setLogoutError(t("auth.logoutError"));
+      setLogoutPending(false);
+    }
+  };
+
   const content = (
     <section className="account-page page-container">
       <section className="account-overview" aria-labelledby="account-title">
@@ -37,6 +56,21 @@ export function AccountPage() {
                 {t(`auth.statuses.${user.status}`)}
               </span>
             </p>
+          </div>
+          <div className="account-header__actions">
+            <Button
+              variant="secondary"
+              leadingIcon={<LogOut size={17} />}
+              isLoading={logoutPending}
+              onClick={() => void logout()}
+            >
+              {t("auth.logout")}
+            </Button>
+            {logoutError ? (
+              <p className="auth-error account-logout-error" role="alert">
+                {logoutError}
+              </p>
+            ) : null}
           </div>
         </header>
         <div className="account-content">
