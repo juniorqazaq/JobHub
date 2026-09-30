@@ -1,4 +1,4 @@
-.PHONY: dev local-up local-down migrate-local migrate-staging migrate-version import-jooble
+.PHONY: dev local-up local-down migrate-local migrate-staging migrate-version import-jooble seed-demo
 
 dev:
 	./scripts/dev-local.sh
@@ -20,3 +20,6 @@ migrate-version:
 
 import-jooble:
 	@set -a; . ./.env; set +a; cd backend && go run ./cmd/import-jooble
+
+seed-demo:
+	@set -a; . ./.env; set +a; cd backend && go run ./cmd/seed-demo
