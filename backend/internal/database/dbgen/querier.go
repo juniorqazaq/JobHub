@@ -23,6 +23,7 @@ type Querier interface {
 	DatabaseTime(ctx context.Context) (pgtype.Timestamptz, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	FailIngestionRun(ctx context.Context, arg FailIngestionRunParams) error
+	FindOrCreateImportedCompany(ctx context.Context, name string) (pgtype.UUID, error)
 	GetCompanyForUser(ctx context.Context, userID pgtype.UUID) (JobhubCompany, error)
 	GetEmployerJob(ctx context.Context, arg GetEmployerJobParams) (JobhubJob, error)
 	GetPublicJob(ctx context.Context, arg GetPublicJobParams) (JobhubJob, error)
@@ -31,7 +32,7 @@ type Querier interface {
 	GetUserByNormalizedEmail(ctx context.Context, normalizedEmail string) (JobhubUser, error)
 	ImportedJobExists(ctx context.Context, arg ImportedJobExistsParams) (bool, error)
 	ListEmployerJobs(ctx context.Context, userID pgtype.UUID) ([]JobhubJob, error)
-	ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]JobhubJob, error)
+	ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]ListPublicJobsRow, error)
 	RevokeSession(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteNativeJob(ctx context.Context, arg SoftDeleteNativeJobParams) (pgtype.UUID, error)
 	TransitionNativeJob(ctx context.Context, arg TransitionNativeJobParams) (JobhubJob, error)

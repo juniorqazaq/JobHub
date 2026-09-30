@@ -64,8 +64,28 @@ export interface JobDto {
 
 export interface EmployerJobsResponseDto { items: JobDto[] }
 
+export interface JobCardDto {
+  id: string;
+  title: string;
+  company: JobDto["company"];
+  location: string;
+  city_id?: string;
+  work_mode?: WorkMode;
+  employment_type?: EmploymentType | string;
+  category?: string;
+  summary: string;
+  salary_raw?: string;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_period?: string;
+  salary_visible?: boolean;
+  posted_at: string;
+  source: JobDto["source"];
+}
+
 export interface JobSearchResponseDto {
-  items: JobDto[];
+  items: JobCardDto[];
   page: number;
   page_size: number;
   total: number;

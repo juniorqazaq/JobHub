@@ -43,7 +43,7 @@ func TestImportedJobEndpoints(t *testing.T) {
 	now := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
 	reader := jobReaderStub{item: jobs.Job{
 		ID: "11111111-1111-4111-8111-111111111111", Source: "jooble:kz", SourceName: "Jooble",
-		SourceURL: "https://kz.jooble.org/jdp/123", CompanyName: "Example KZ", Title: "Go Developer",
+		SourceURL: "https://kz.jooble.org/jdp/123", CompanyID: "22222222-2222-4222-8222-222222222222", CompanyName: "Example KZ", CompanyLogoURL: "/company-logos/example.svg", CompanyVerified: true, Title: "Go Developer",
 		Location: "Алматы", Description: "Build services", DescriptionKind: "snippet", ApplicationMethod: "external",
 		ApplyURL: "https://kz.jooble.org/jdp/123", FirstSeenAt: now, LastSeenAt: now, LastSyncedAt: now,
 	}}
@@ -56,6 +56,9 @@ func TestImportedJobEndpoints(t *testing.T) {
 		router.ServeHTTP(res, httptest.NewRequest("GET", tc.path, nil))
 		if res.Code != 200 || !strings.Contains(res.Body.String(), tc.expected) || !strings.Contains(res.Body.String(), `"id":"jooble:kz"`) {
 			t.Fatalf("unexpected response for %s: %d %s", tc.path, res.Code, res.Body.String())
+		}
+		if tc.path == "/api/v1/jobs" && (!strings.Contains(res.Body.String(), `"logo_url":"/company-logos/example.svg"`) || strings.Contains(res.Body.String(), `"responsibilities"`) || strings.Contains(res.Body.String(), `"application"`)) {
+			t.Fatalf("jobs list response was not card-only: %s", res.Body.String())
 		}
 	}
 }

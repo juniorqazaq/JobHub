@@ -286,6 +286,21 @@ func (q *Queries) FailIngestionRun(ctx context.Context, arg FailIngestionRunPara
 	return err
 }
 
+const findOrCreateImportedCompany = `-- name: FindOrCreateImportedCompany :one
+INSERT INTO jobhub.companies (name)
+VALUES ($1)
+ON CONFLICT (lower(regexp_replace(btrim(name), '\s+', ' ', 'g')))
+DO UPDATE SET updated_at = jobhub.companies.updated_at
+RETURNING id
+`
+
+func (q *Queries) FindOrCreateImportedCompany(ctx context.Context, name string) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, findOrCreateImportedCompany, name)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getEmployerJob = `-- name: GetEmployerJob :one
 SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
 FROM jobhub.jobs j
@@ -541,9 +556,33 @@ func (q *Queries) ListEmployerJobs(ctx context.Context, userID pgtype.UUID) ([]J
 }
 
 const listPublicJobs = `-- name: ListPublicJobs :many
-SELECT j.id, j.source, j.external_id, j.source_url, j.upstream_source_name, j.company_id, j.company_source_id, j.company_name_raw, j.title, j.location_raw, j.description, j.description_kind, j.employment_type_raw, j.salary_raw, j.salary_min, j.salary_max, j.salary_currency, j.salary_period, j.salary_gross, j.salary_is_estimated, j.application_method, j.apply_url, j.source_status, j.publication_status, j.first_seen_at, j.last_seen_at, j.last_synced_at, j.fresh_until, j.external_created_at, j.external_published_at, j.external_updated_at, j.external_updated_raw, j.external_expires_at, j.external_archived_at, j.created_at, j.updated_at, j.category, j.responsibilities, j.requirements, j.nice_to_have, j.skills, j.work_mode, j.employment_type, j.experience_level, j.benefits, j.salary_visible, j.expires_at, j.published_at, j.deleted_at, j.moderation_status, j.created_by_user_id, j.canonical_city_id
+SELECT
+    j.id,
+    j.source,
+    s.display_name AS source_name,
+    j.company_id,
+    COALESCE(c.name, j.company_name_raw, '') AS company_name,
+    COALESCE(c.logo_url, '') AS company_logo_url,
+    COALESCE(c.is_verified, false) AS company_verified,
+    j.title,
+    COALESCE(j.category, '') AS category,
+    COALESCE(j.location_raw, '') AS location_raw,
+    COALESCE(j.canonical_city_id, '') AS canonical_city_id,
+    COALESCE(j.work_mode, '') AS work_mode,
+    COALESCE(j.employment_type, j.employment_type_raw, '') AS employment_type,
+    COALESCE(j.experience_level, '') AS experience_level,
+    LEFT(COALESCE(j.description, ''), 240) AS summary,
+    j.description_kind,
+    COALESCE(j.salary_raw, '') AS salary_raw,
+    j.salary_min,
+    j.salary_max,
+    COALESCE(j.salary_currency, '') AS salary_currency,
+    COALESCE(j.salary_period, '') AS salary_period,
+    j.salary_visible,
+    COALESCE(j.published_at, j.external_published_at, j.first_seen_at) AS posted_at
 FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
+LEFT JOIN jobhub.companies c ON c.id = j.company_id
 WHERE s.enabled
   AND (NOT $1::boolean OR s.production_permissions_confirmed)
   AND jobhub.job_is_public(j)
@@ -578,7 +617,33 @@ type ListPublicJobsParams struct {
 	PageSize                     int32
 }
 
-func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]JobhubJob, error) {
+type ListPublicJobsRow struct {
+	ID              pgtype.UUID
+	Source          string
+	SourceName      string
+	CompanyID       pgtype.UUID
+	CompanyName     string
+	CompanyLogoUrl  string
+	CompanyVerified bool
+	Title           string
+	Category        string
+	LocationRaw     string
+	CanonicalCityID string
+	WorkMode        string
+	EmploymentType  string
+	ExperienceLevel string
+	Summary         string
+	DescriptionKind string
+	SalaryRaw       string
+	SalaryMin       pgtype.Numeric
+	SalaryMax       pgtype.Numeric
+	SalaryCurrency  string
+	SalaryPeriod    string
+	SalaryVisible   bool
+	PostedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) ([]ListPublicJobsRow, error) {
 	rows, err := q.db.Query(ctx, listPublicJobs,
 		arg.RequireProductionPermissions,
 		arg.Query,
@@ -598,62 +663,33 @@ func (q *Queries) ListPublicJobs(ctx context.Context, arg ListPublicJobsParams) 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []JobhubJob
+	var items []ListPublicJobsRow
 	for rows.Next() {
-		var i JobhubJob
+		var i ListPublicJobsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Source,
-			&i.ExternalID,
-			&i.SourceUrl,
-			&i.UpstreamSourceName,
+			&i.SourceName,
 			&i.CompanyID,
-			&i.CompanySourceID,
-			&i.CompanyNameRaw,
+			&i.CompanyName,
+			&i.CompanyLogoUrl,
+			&i.CompanyVerified,
 			&i.Title,
+			&i.Category,
 			&i.LocationRaw,
-			&i.Description,
+			&i.CanonicalCityID,
+			&i.WorkMode,
+			&i.EmploymentType,
+			&i.ExperienceLevel,
+			&i.Summary,
 			&i.DescriptionKind,
-			&i.EmploymentTypeRaw,
 			&i.SalaryRaw,
 			&i.SalaryMin,
 			&i.SalaryMax,
 			&i.SalaryCurrency,
 			&i.SalaryPeriod,
-			&i.SalaryGross,
-			&i.SalaryIsEstimated,
-			&i.ApplicationMethod,
-			&i.ApplyUrl,
-			&i.SourceStatus,
-			&i.PublicationStatus,
-			&i.FirstSeenAt,
-			&i.LastSeenAt,
-			&i.LastSyncedAt,
-			&i.FreshUntil,
-			&i.ExternalCreatedAt,
-			&i.ExternalPublishedAt,
-			&i.ExternalUpdatedAt,
-			&i.ExternalUpdatedRaw,
-			&i.ExternalExpiresAt,
-			&i.ExternalArchivedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Category,
-			&i.Responsibilities,
-			&i.Requirements,
-			&i.NiceToHave,
-			&i.Skills,
-			&i.WorkMode,
-			&i.EmploymentType,
-			&i.ExperienceLevel,
-			&i.Benefits,
 			&i.SalaryVisible,
-			&i.ExpiresAt,
-			&i.PublishedAt,
-			&i.DeletedAt,
-			&i.ModerationStatus,
-			&i.CreatedByUserID,
-			&i.CanonicalCityID,
+			&i.PostedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -932,6 +968,7 @@ INSERT INTO jobhub.jobs (
     external_id,
     source_url,
     upstream_source_name,
+    company_id,
     company_name_raw,
     title,
     location_raw,
@@ -966,21 +1003,23 @@ INSERT INTO jobhub.jobs (
     $11,
     $12,
     $13,
+    $14,
     'external',
     $3,
     'unknown',
-    $14,
-    $14,
-    $14,
+    $15,
+    $15,
     $15,
     $16,
     $17,
     $18,
-    $19
+    $19,
+    $20
 )
 ON CONFLICT (source, external_id) DO UPDATE SET
     source_url = EXCLUDED.source_url,
     upstream_source_name = EXCLUDED.upstream_source_name,
+    company_id = COALESCE(EXCLUDED.company_id, jobhub.jobs.company_id),
     company_name_raw = EXCLUDED.company_name_raw,
     title = EXCLUDED.title,
     location_raw = EXCLUDED.location_raw,
@@ -1008,6 +1047,7 @@ type UpsertImportedJobParams struct {
 	ExternalID          pgtype.Text
 	SourceUrl           pgtype.Text
 	UpstreamSourceName  pgtype.Text
+	CompanyID           pgtype.UUID
 	CompanyNameRaw      pgtype.Text
 	Title               string
 	LocationRaw         pgtype.Text
@@ -1031,6 +1071,7 @@ func (q *Queries) UpsertImportedJob(ctx context.Context, arg UpsertImportedJobPa
 		arg.ExternalID,
 		arg.SourceUrl,
 		arg.UpstreamSourceName,
+		arg.CompanyID,
 		arg.CompanyNameRaw,
 		arg.Title,
 		arg.LocationRaw,

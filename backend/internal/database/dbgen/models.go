@@ -8,6 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CompanyDuplicateMap struct {
+	DuplicateID pgtype.UUID
+	CanonicalID interface{}
+}
+
 type JobhubApplication struct {
 	ID          pgtype.UUID
 	JobID       pgtype.UUID

@@ -38,6 +38,8 @@ type Job struct {
 	UpstreamSourceName  string
 	CompanyName         string
 	CompanyID           string
+	CompanyLogoURL      string
+	CompanyVerified     bool
 	Title               string
 	Category            string
 	Location            string

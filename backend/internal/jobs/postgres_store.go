@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 	"jobhub-ai/backend/internal/database/dbgen"
 	"jobhub-ai/backend/internal/locations"
 )
@@ -66,10 +67,18 @@ func (s *PostgresStore) CompleteIngestionRun(ctx context.Context, runID, source 
 		if err != nil {
 			return stats, fmt.Errorf("check imported job: %w", err)
 		}
+		var companyID pgtype.UUID
+		if companyName := normalizedCompanyName(item.CompanyNameRaw); companyName != "" {
+			companyID, err = q.FindOrCreateImportedCompany(ctx, companyName)
+			if err != nil {
+				return stats, fmt.Errorf("find or create imported company: %w", err)
+			}
+		}
 		_, err = q.UpsertImportedJob(ctx, dbgen.UpsertImportedJobParams{
 			Source: source, ExternalID: nullableText(item.ExternalID), SourceUrl: nullableText(item.SourceURL),
 			UpstreamSourceName: nullableText(item.UpstreamSourceName), CompanyNameRaw: nullableText(item.CompanyNameRaw),
-			Title: item.Title, LocationRaw: nullableText(item.LocationRaw), Description: nullableText(item.Description),
+			CompanyID: companyID,
+			Title:     item.Title, LocationRaw: nullableText(item.LocationRaw), Description: nullableText(item.Description),
 			CanonicalCityID: nullableText(item.CanonicalCityID),
 			DescriptionKind: item.DescriptionKind, EmploymentTypeRaw: nullableText(item.EmploymentTypeRaw),
 			SalaryRaw: nullableText(item.SalaryRaw), Category: nullableText(item.Category), ObservedAt: timestamptz(observedAt), FreshUntil: timestamptz(freshUntil),
@@ -102,28 +111,47 @@ func (s *PostgresStore) CompleteIngestionRun(ctx context.Context, runID, source 
 	return stats, nil
 }
 
+func normalizedCompanyName(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
 func (s *PostgresStore) Search(ctx context.Context, params SearchParams) (SearchResult, error) {
 	query := nullableText(strings.TrimSpace(params.Query))
 	filters := dbgen.CountPublicJobsParams{RequireProductionPermissions: s.requireProductionPermissions, Query: query,
 		City: nullableText(params.City), WorkModes: params.WorkModes, SalaryMin: nullableNumeric(params.SalaryMin),
 		Currency: nullableText(params.Currency), ExperienceLevel: nullableText(params.ExperienceLevel),
 		EmploymentType: nullableText(params.EmploymentType), PostedAfter: nullableTime(params.PostedAfter)}
-	total, err := s.queries.CountPublicJobs(ctx, filters)
-	if err != nil {
-		return SearchResult{}, fmt.Errorf("count jobs: %w", err)
-	}
-	rows, err := s.queries.ListPublicJobs(ctx, dbgen.ListPublicJobsParams{
+	listParams := dbgen.ListPublicJobsParams{
 		Query: filters.Query, City: filters.City, WorkModes: filters.WorkModes, SalaryMin: filters.SalaryMin,
 		Currency: filters.Currency, ExperienceLevel: filters.ExperienceLevel, EmploymentType: filters.EmploymentType,
 		PostedAfter: filters.PostedAfter, PreferredCity: nullableText(params.PreferredCity), RequireProductionPermissions: s.requireProductionPermissions,
 		Sort: params.Sort, PageOffset: int32((params.Page - 1) * params.PageSize), PageSize: int32(params.PageSize),
+	}
+	var total int64
+	var rows []dbgen.ListPublicJobsRow
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		var err error
+		total, err = s.queries.CountPublicJobs(groupCtx, filters)
+		if err != nil {
+			return fmt.Errorf("count jobs: %w", err)
+		}
+		return nil
 	})
-	if err != nil {
-		return SearchResult{}, fmt.Errorf("list jobs: %w", err)
+	group.Go(func() error {
+		var err error
+		rows, err = s.queries.ListPublicJobs(groupCtx, listParams)
+		if err != nil {
+			return fmt.Errorf("list jobs: %w", err)
+		}
+		return nil
+	})
+	if err := group.Wait(); err != nil {
+		return SearchResult{}, err
 	}
 	items := make([]Job, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, mapRow(row))
+		items = append(items, mapJobCardRow(row))
 	}
 	return SearchResult{Items: items, Total: total}, nil
 }
@@ -240,6 +268,24 @@ func mapOwnedRow(row dbgen.JobhubJob, err error, operation string) (Job, error) 
 	return mapRow(row), nil
 }
 
+func mapJobCardRow(row dbgen.ListPublicJobsRow) Job {
+	job := Job{
+		ID: formatUUID(row.ID), Source: row.Source, SourceName: row.SourceName,
+		CompanyID: formatUUID(row.CompanyID), CompanyName: row.CompanyName, CompanyLogoURL: row.CompanyLogoUrl,
+		CompanyVerified: row.CompanyVerified, Title: row.Title, Category: row.Category, Location: row.LocationRaw,
+		CanonicalCityID: row.CanonicalCityID, WorkMode: row.WorkMode, EmploymentType: row.EmploymentType,
+		ExperienceLevel: row.ExperienceLevel, Description: row.Summary, DescriptionKind: row.DescriptionKind,
+		SalaryRaw: row.SalaryRaw, SalaryMin: numericValue(row.SalaryMin), SalaryMax: numericValue(row.SalaryMax),
+		SalaryCurrency: row.SalaryCurrency, SalaryPeriod: row.SalaryPeriod, SalaryVisible: row.SalaryVisible,
+	}
+	if row.PostedAt.Valid {
+		job.FirstSeenAt = row.PostedAt.Time
+		value := row.PostedAt.Time
+		job.PublishedAt = &value
+	}
+	return job
+}
+
 func mapRow(row dbgen.JobhubJob) Job {
 	job := Job{
 		ID: formatUUID(row.ID), Source: row.Source, SourceName: sourceName(row.Source),
@@ -267,10 +313,16 @@ func mapRow(row dbgen.JobhubJob) Job {
 }
 
 func sourceName(source string) string {
+	if source == "jobhub" {
+		return "JobHub"
+	}
 	if source == "jooble:kz" {
 		return "Jooble"
 	}
-	return "JobHub"
+	if source == "demo:external" {
+		return "Demo сыртқы дереккөз"
+	}
+	return source
 }
 
 func nullableText(value string) pgtype.Text { return pgtype.Text{String: value, Valid: value != ""} }

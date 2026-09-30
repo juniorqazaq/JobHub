@@ -1,5 +1,29 @@
-import type { JobSummary } from "../models/job";
-import type { JobDto } from "./dto/jobDto";
+import type { JobSummary, SalaryRange } from "../models/job";
+import type { JobCardDto, JobDto } from "./dto/jobDto";
+
+export function mapJobCardDto(dto: JobCardDto): JobSummary {
+  const salary: SalaryRange | undefined = dto.salary_visible !== false && dto.salary_min != null && dto.salary_currency && (dto.salary_period === "month" || dto.salary_period === "year")
+    ? { min: dto.salary_min, max: dto.salary_max, currency: dto.salary_currency, period: dto.salary_period }
+    : undefined;
+  return {
+    id: dto.id,
+    title: dto.title,
+    company: { id: dto.company.id ?? undefined, name: dto.company.name, logoUrl: dto.company.logo_url, verified: dto.company.verified },
+    location: dto.location,
+    cityId: dto.city_id,
+    workMode: dto.work_mode,
+    employmentType: dto.employment_type,
+    category: dto.category,
+    salary,
+    salaryRaw: dto.salary_raw,
+    postedAt: dto.posted_at,
+    tags: [],
+    summary: dto.summary,
+    isSaved: false,
+    source: { id: dto.source.id, name: dto.source.name, type: dto.source.type },
+    application: { method: dto.source.type === "native" ? "internal" : "external" },
+  };
+}
 
 export function mapJobDto(dto: JobDto): JobSummary {
   return {

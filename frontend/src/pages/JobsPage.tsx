@@ -21,7 +21,7 @@ export function JobsPage() {
   const [urlParams, setUrlParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useMemo(() => ({ ...parseJobSearchParams(urlParams), pageSize: 20 }), [urlParams]);
-  const jobs = useQuery({ queryKey: ["jobs", search], queryFn: () => repositories.jobs.search(search) });
+  const jobs = useQuery({ queryKey: ["jobs", search], queryFn: () => repositories.jobs.search(search), staleTime: 2 * 60_000 });
   const setSearch = (next: JobSearchParams) => setUrlParams(serializeJobSearchParams(next));
   const updateKeyword = (values: JobSearchValues) => setSearch({ ...search, query: values.query || undefined, page: 1 });
   const clear = () => setUrlParams(new URLSearchParams());

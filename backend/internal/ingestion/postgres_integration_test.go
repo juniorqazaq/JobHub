@@ -40,18 +40,20 @@ func TestPostgresImportIsAtomicAndIdempotent(t *testing.T) {
 	store := jobs.NewPostgresStore(pool)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	externalID := fmt.Sprintf("jobhub-poc-test-%d", time.Now().UnixNano())
+	companyName := "  Demo Import " + externalID + "  "
 	link := "https://kz.jooble.org/jdp/" + externalID
 	searches := []jooble.Search{{Keywords: externalID, Location: "Казахстан", Page: 1, ResultsPerPage: 1}}
 	var runIDs []string
 	t.Cleanup(func() {
 		_, _ = pool.Exec(ctx, "DELETE FROM jobhub.jobs WHERE source = 'jooble:kz' AND external_id = $1", externalID)
+		_, _ = pool.Exec(ctx, "DELETE FROM jobhub.companies WHERE name = $1", strings.TrimSpace(companyName))
 		for _, id := range runIDs {
 			_, _ = pool.Exec(ctx, "DELETE FROM jobhub.ingestion_runs WHERE id = $1::uuid", id)
 		}
 	})
 
 	firstTime := time.Now().UTC().Truncate(time.Microsecond)
-	firstProvider := &fakeProvider{vacancies: []jooble.Vacancy{{ID: jooble.ExternalID(externalID), Title: "POC Go Developer " + externalID, Link: link, Location: "Алматы"}}}
+	firstProvider := &fakeProvider{vacancies: []jooble.Vacancy{{ID: jooble.ExternalID(externalID), Title: "POC Go Developer " + externalID, Link: link, Location: "Алматы", Company: companyName}}}
 	firstService := NewService(store, firstProvider, logger, 72*time.Hour)
 	firstService.now = func() time.Time { return firstTime }
 	firstStats, err := firstService.RunJooble(ctx, searches)
@@ -67,6 +69,13 @@ func TestPostgresImportIsAtomicAndIdempotent(t *testing.T) {
 		t.Fatalf("stored job unavailable: %#v %v", firstResult, err)
 	}
 	firstJob := firstResult.Items[0]
+	firstDetail, err := store.Get(ctx, firstJob.ID)
+	if err != nil {
+		t.Fatalf("stored job detail unavailable: %v", err)
+	}
+	if firstJob.CompanyID == "" || firstJob.CompanyName != strings.TrimSpace(companyName) {
+		t.Fatalf("imported job company was not normalized and linked: %#v", firstJob)
+	}
 	if firstJob.CanonicalCityID != "almaty" || firstJob.Location != "Алматы" {
 		t.Fatalf("location normalization changed raw data or missed canonical city: %#v", firstJob)
 	}
@@ -105,7 +114,11 @@ func TestPostgresImportIsAtomicAndIdempotent(t *testing.T) {
 		t.Fatalf("updated job unavailable: %#v %v", secondResult, err)
 	}
 	secondJob := secondResult.Items[0]
-	if secondJob.ID != firstJob.ID || secondJob.Title != secondTitle || !secondJob.FirstSeenAt.Equal(firstTime) || !secondJob.LastSyncedAt.Equal(secondTime) {
+	secondDetail, err := store.Get(ctx, secondJob.ID)
+	if err != nil {
+		t.Fatalf("updated job detail unavailable: %v", err)
+	}
+	if secondJob.ID != firstJob.ID || secondJob.Title != secondTitle || !firstDetail.FirstSeenAt.Equal(firstTime) || !secondDetail.FirstSeenAt.Equal(firstTime) || !secondDetail.LastSyncedAt.Equal(secondTime) {
 		t.Fatalf("row identity or timestamps changed incorrectly: before=%#v after=%#v", firstJob, secondJob)
 	}
 	router := handlers.NewRouter(integrationHealth{}, logger, "http://localhost:5173", store)

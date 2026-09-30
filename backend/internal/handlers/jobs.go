@@ -24,6 +24,7 @@ type sourceDTO struct {
 type companyDTO struct {
 	ID       *string `json:"id"`
 	Name     string  `json:"name"`
+	LogoURL  string  `json:"logo_url,omitempty"`
 	Verified bool    `json:"verified"`
 }
 
@@ -73,11 +74,31 @@ type jobDTO struct {
 }
 
 type jobSearchDTO struct {
-	Items      []jobDTO `json:"items"`
-	Page       int      `json:"page"`
-	PageSize   int      `json:"page_size"`
-	Total      int64    `json:"total"`
-	TotalPages int      `json:"total_pages"`
+	Items      []jobCardDTO `json:"items"`
+	Page       int          `json:"page"`
+	PageSize   int          `json:"page_size"`
+	Total      int64        `json:"total"`
+	TotalPages int          `json:"total_pages"`
+}
+
+type jobCardDTO struct {
+	ID             string     `json:"id"`
+	Title          string     `json:"title"`
+	Company        companyDTO `json:"company"`
+	Location       string     `json:"location"`
+	CityID         string     `json:"city_id,omitempty"`
+	WorkMode       string     `json:"work_mode,omitempty"`
+	EmploymentType string     `json:"employment_type,omitempty"`
+	Category       string     `json:"category,omitempty"`
+	Summary        string     `json:"summary"`
+	SalaryRaw      string     `json:"salary_raw,omitempty"`
+	SalaryMin      *float64   `json:"salary_min,omitempty"`
+	SalaryMax      *float64   `json:"salary_max,omitempty"`
+	SalaryCurrency string     `json:"salary_currency,omitempty"`
+	SalaryPeriod   string     `json:"salary_period,omitempty"`
+	SalaryVisible  bool       `json:"salary_visible"`
+	PostedAt       time.Time  `json:"posted_at"`
+	Source         sourceDTO  `json:"source"`
 }
 
 func ListJobs(reader jobs.Reader, logger *slog.Logger) gin.HandlerFunc {
@@ -105,9 +126,9 @@ func ListJobs(reader jobs.Reader, logger *slog.Logger) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "JOBS_UNAVAILABLE", "message": "Jobs are temporarily unavailable"}})
 			return
 		}
-		items := make([]jobDTO, 0, len(result.Items))
+		items := make([]jobCardDTO, 0, len(result.Items))
 		for _, item := range result.Items {
-			items = append(items, mapPublicJob(item))
+			items = append(items, mapJobCard(item))
 		}
 		totalPages := 0
 		if result.Total > 0 {
@@ -115,6 +136,32 @@ func ListJobs(reader jobs.Reader, logger *slog.Logger) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, jobSearchDTO{Items: items, Page: page, PageSize: pageSize, Total: result.Total, TotalPages: totalPages})
 	}
+}
+
+func mapJobCard(job jobs.Job) jobCardDTO {
+	postedAt := job.FirstSeenAt
+	if job.PublishedAt != nil {
+		postedAt = *job.PublishedAt
+	} else if job.ExternalPublishedAt != nil {
+		postedAt = *job.ExternalPublishedAt
+	}
+	var companyID *string
+	if job.CompanyID != "" {
+		companyID = &job.CompanyID
+	}
+	result := jobCardDTO{
+		ID: job.ID, Title: job.Title,
+		Company:  companyDTO{ID: companyID, Name: job.CompanyName, LogoURL: job.CompanyLogoURL, Verified: job.CompanyVerified},
+		Location: job.Location, CityID: job.CanonicalCityID, WorkMode: job.WorkMode, EmploymentType: job.EmploymentType,
+		Category: job.Category, Summary: job.Description, SalaryRaw: job.SalaryRaw, SalaryMin: job.SalaryMin,
+		SalaryMax: job.SalaryMax, SalaryCurrency: job.SalaryCurrency, SalaryPeriod: job.SalaryPeriod,
+		SalaryVisible: job.SalaryVisible, PostedAt: postedAt,
+		Source: sourceDTO{ID: job.Source, Name: job.SourceName, Type: sourceType(job.Source)},
+	}
+	if job.Source == "jobhub" && !job.SalaryVisible {
+		result.SalaryRaw, result.SalaryMin, result.SalaryMax, result.SalaryCurrency, result.SalaryPeriod = "", nil, nil, "", ""
+	}
+	return result
 }
 
 func GetJob(reader jobs.Reader, logger *slog.Logger) gin.HandlerFunc {
@@ -158,7 +205,7 @@ func mapJob(job jobs.Job) jobDTO {
 		companyID = &job.CompanyID
 	}
 	return jobDTO{
-		ID: job.ID, Title: job.Title, Company: companyDTO{ID: companyID, Name: job.CompanyName, Verified: false},
+		ID: job.ID, Title: job.Title, Company: companyDTO{ID: companyID, Name: job.CompanyName, LogoURL: job.CompanyLogoURL, Verified: job.CompanyVerified},
 		Location: job.Location, CityID: job.CanonicalCityID, EmploymentType: job.EmploymentType, Category: job.Category,
 		Responsibilities: job.Responsibilities, Requirements: job.Requirements, NiceToHave: job.NiceToHave,
 		Skills: job.Skills, WorkMode: job.WorkMode, ExperienceLevel: job.ExperienceLevel, Summary: job.Description,

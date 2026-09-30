@@ -35,12 +35,20 @@ SELECT EXISTS (
     WHERE source = sqlc.arg(source) AND external_id = sqlc.arg(external_id)
 );
 
+-- name: FindOrCreateImportedCompany :one
+INSERT INTO jobhub.companies (name)
+VALUES (sqlc.arg(name))
+ON CONFLICT (lower(regexp_replace(btrim(name), '\s+', ' ', 'g')))
+DO UPDATE SET updated_at = jobhub.companies.updated_at
+RETURNING id;
+
 -- name: UpsertImportedJob :one
 INSERT INTO jobhub.jobs (
     source,
     external_id,
     source_url,
     upstream_source_name,
+    company_id,
     company_name_raw,
     title,
     location_raw,
@@ -66,6 +74,7 @@ INSERT INTO jobhub.jobs (
     sqlc.arg(external_id),
     sqlc.arg(source_url),
     sqlc.narg(upstream_source_name),
+    sqlc.narg(company_id),
     sqlc.narg(company_name_raw),
     sqlc.arg(title),
     sqlc.narg(location_raw),
@@ -90,6 +99,7 @@ INSERT INTO jobhub.jobs (
 ON CONFLICT (source, external_id) DO UPDATE SET
     source_url = EXCLUDED.source_url,
     upstream_source_name = EXCLUDED.upstream_source_name,
+    company_id = COALESCE(EXCLUDED.company_id, jobhub.jobs.company_id),
     company_name_raw = EXCLUDED.company_name_raw,
     title = EXCLUDED.title,
     location_raw = EXCLUDED.location_raw,
@@ -127,9 +137,33 @@ WHERE s.enabled
   AND (sqlc.narg(posted_after)::timestamptz IS NULL OR COALESCE(j.external_published_at, j.published_at, j.first_seen_at) >= sqlc.narg(posted_after));
 
 -- name: ListPublicJobs :many
-SELECT j.*
+SELECT
+    j.id,
+    j.source,
+    s.display_name AS source_name,
+    j.company_id,
+    COALESCE(c.name, j.company_name_raw, '') AS company_name,
+    COALESCE(c.logo_url, '') AS company_logo_url,
+    COALESCE(c.is_verified, false) AS company_verified,
+    j.title,
+    COALESCE(j.category, '') AS category,
+    COALESCE(j.location_raw, '') AS location_raw,
+    COALESCE(j.canonical_city_id, '') AS canonical_city_id,
+    COALESCE(j.work_mode, '') AS work_mode,
+    COALESCE(j.employment_type, j.employment_type_raw, '') AS employment_type,
+    COALESCE(j.experience_level, '') AS experience_level,
+    LEFT(COALESCE(j.description, ''), 240) AS summary,
+    j.description_kind,
+    COALESCE(j.salary_raw, '') AS salary_raw,
+    j.salary_min,
+    j.salary_max,
+    COALESCE(j.salary_currency, '') AS salary_currency,
+    COALESCE(j.salary_period, '') AS salary_period,
+    j.salary_visible,
+    COALESCE(j.published_at, j.external_published_at, j.first_seen_at) AS posted_at
 FROM jobhub.jobs j
 JOIN jobhub.job_sources s ON s.source = j.source
+LEFT JOIN jobhub.companies c ON c.id = j.company_id
 WHERE s.enabled
   AND (NOT sqlc.arg(require_production_permissions)::boolean OR s.production_permissions_confirmed)
   AND jobhub.job_is_public(j)

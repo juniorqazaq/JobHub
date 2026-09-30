@@ -2,7 +2,7 @@ import type { JobsRepository } from "../repositories/JobsRepository";
 import type { JobSearchParams, JobSearchResponse, JobSummary } from "../models/job";
 import { apiClient } from "../client";
 import type { JobDto, JobSearchResponseDto } from "./dto/jobDto";
-import { mapJobDto } from "./jobMappers";
+import { mapJobCardDto, mapJobDto } from "./jobMappers";
 
 export class HttpJobsRepository implements JobsRepository {
   async search(params: JobSearchParams): Promise<JobSearchResponse> {
@@ -24,7 +24,7 @@ export class HttpJobsRepository implements JobsRepository {
     });
 
     return {
-      items: response.data.items.map(mapJobDto),
+      items: response.data.items.map(mapJobCardDto),
       page: response.data.page,
       pageSize: response.data.page_size,
       total: response.data.total,
