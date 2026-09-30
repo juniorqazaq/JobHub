@@ -10,7 +10,7 @@ const destinations = [
 ] as const;
 
 function primaryPath(pathname: string) {
-  if (pathname === "/saved" || pathname === "/applications") return "/saved";
+  if (pathname === "/saved" || pathname === "/saved-companies" || pathname === "/applications") return "/saved";
   if (pathname === "/resume" || pathname === "/preferences") return "/resume";
   return "/profile";
 }

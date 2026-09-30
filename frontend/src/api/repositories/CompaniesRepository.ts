@@ -1,8 +1,10 @@
-import type { Company, CompanyDetail, CompanyProfileInput, CompanySearchResponse } from "../models/company";
+import type { Company, CompanyProfileInput, CompanySearchResponse, CompanyVacancySearchResponse } from "../models/company";
 
 export interface CompaniesRepository {
   search(query: string, page?: number): Promise<CompanySearchResponse>;
-  get(id: string): Promise<CompanyDetail>;
+  listFollowing(): Promise<Company[]>;
+  get(id: string): Promise<Company>;
+  getJobs(id: string, page?: number, pageSize?: number): Promise<CompanyVacancySearchResponse>;
   getEmployerCompany(): Promise<Company>;
   updateEmployerCompany(input: CompanyProfileInput, csrfToken: string): Promise<Company>;
   getFollowState(id: string): Promise<boolean>;

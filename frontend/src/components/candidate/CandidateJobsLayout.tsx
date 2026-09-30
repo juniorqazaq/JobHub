@@ -20,6 +20,7 @@ export function CandidateJobsLayout({ children, tabTitle, tabDescription }: Cand
         </header>
         <nav className="candidate-tabs" aria-label={t("workspace.myJobsTabsLabel")}>
           <NavLink to="/saved" end>{t("workspace.tabs.saved")}</NavLink>
+	          <NavLink to="/saved-companies" end>{t("workspace.tabs.companies")}</NavLink>
           <NavLink to="/applications" end>{t("workspace.tabs.applications")}</NavLink>
         </nav>
         <header className="candidate-tab-header">

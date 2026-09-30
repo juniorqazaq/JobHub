@@ -26,15 +26,20 @@ export interface CompanyVacancy {
   salaryPeriod?: string;
   salaryVisible: boolean;
   publishedAt?: string;
-}
-
-export interface CompanyDetail {
-  company: Company;
-  jobs: CompanyVacancy[];
+  source: "native" | "external";
+  sourceName: string;
 }
 
 export interface CompanySearchResponse {
   items: Company[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface CompanyVacancySearchResponse {
+  items: CompanyVacancy[];
   page: number;
   pageSize: number;
   total: number;

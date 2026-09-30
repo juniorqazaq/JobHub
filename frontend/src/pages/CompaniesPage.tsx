@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, BriefcaseBusiness, MapPin, Search, UsersRound } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, MapPin, Search, Star } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
@@ -38,11 +38,14 @@ export function CompaniesPage() {
             <CompanyIdentity company={company} verifiedLabel={t("companies.verified")} />
             {company.description ? <p>{company.description}</p> : <p>{t("companies.noDescription")}</p>}
             <div className="company-card__facts">
+              {company.industry ? <span><BriefcaseBusiness size={16} aria-hidden="true" />{company.industry}</span> : null}
               {company.city ? <span><MapPin size={16} aria-hidden="true" />{company.city}</span> : null}
-              <span><BriefcaseBusiness size={16} aria-hidden="true" />{t("companies.jobCount", { count: company.openJobsCount })}</span>
-              <span><UsersRound size={16} aria-hidden="true" />{t("companies.followerCount", { count: company.followerCount })}</span>
             </div>
-            <Link to={`/companies/${company.id}`}>{t("companies.openProfile")}<ArrowRight size={17} aria-hidden="true" /></Link>
+            <div className="company-card__rating"><Star size={16} aria-hidden="true" /><span>{t("companies.ratingUnavailable")}</span></div>
+            <div className="company-card__footer">
+              <span className="company-card__vacancies"><BriefcaseBusiness size={16} aria-hidden="true" />{t("companies.jobCount", { count: company.openJobsCount })}</span>
+              <Link className="ui-button ui-button--secondary ui-button--md" to={`/companies/${company.id}`}>{t("companies.openProfile")}<ArrowRight size={17} aria-hidden="true" /></Link>
+            </div>
           </article>
         ))}</div> : null}
         {companies.data && companies.data.totalPages > 1 ? <div className="results-pagination"><Pagination page={companies.data.page} totalPages={companies.data.totalPages} onChange={(nextPage) => { const next = new URLSearchParams(params); next.set("page", String(nextPage)); setParams(next); }} label={t("companies.pagination")} previousLabel={t("common.previous")} nextLabel={t("common.next")} pageLabel={(value) => t("common.page", { page: value })} /></div> : null}

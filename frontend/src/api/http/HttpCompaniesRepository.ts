@@ -1,5 +1,5 @@
 import { apiClient } from "../client";
-import type { Company, CompanyDetail, CompanyProfileInput, CompanySearchResponse, CompanyVacancy } from "../models/company";
+import type { Company, CompanyProfileInput, CompanySearchResponse, CompanyVacancy, CompanyVacancySearchResponse } from "../models/company";
 import type { CompaniesRepository } from "../repositories/CompaniesRepository";
 
 type Snake = Record<string, unknown>;
@@ -14,9 +14,21 @@ export class HttpCompaniesRepository implements CompaniesRepository {
   }
 
   async get(id: string) {
-    const { data } = await apiClient.get<{ company: Snake; jobs: Snake[] }>(`/companies/${id}`);
-    return { company: mapCompany(data.company), jobs: data.jobs.map(mapVacancy) } satisfies CompanyDetail;
+    const { data } = await apiClient.get<Snake>(`/companies/${id}`);
+    return mapCompany(data);
   }
+
+  async getJobs(id: string, page = 1, pageSize = 20) {
+    const { data } = await apiClient.get<{ items: Snake[]; page: number; page_size: number; total: number; total_pages: number }>(`/companies/${id}/jobs`, {
+      params: { page, page_size: pageSize },
+    });
+    return { items: data.items.map(mapVacancy), page: data.page, pageSize: data.page_size, total: data.total, totalPages: data.total_pages } satisfies CompanyVacancySearchResponse;
+  }
+
+  async listFollowing() {
+	const { data } = await apiClient.get<{ items: Snake[] }>("/companies/following");
+	return data.items.map(mapCompany);
+	}
 
   async getEmployerCompany() {
     const { data } = await apiClient.get<Snake>("/employer/company");
@@ -73,6 +85,8 @@ function mapVacancy(data: Snake): CompanyVacancy {
     salaryPeriod: optional(data.salary_period),
     salaryVisible: Boolean(data.salary_visible),
     publishedAt: optional(data.published_at),
+    source: data.source === "jobhub" ? "native" : "external",
+    sourceName: optional(data.source_name) || (data.source === "jobhub" ? "JobHub" : "Jooble"),
   };
 }
 
