@@ -31,8 +31,13 @@ export function JobDetailPage() {
           <article className="detail-content">
             <header>
               <div className="detail-company-identity">
-                <CompanyLogo job={job.data} size="detail" />
-                <strong>{companyPresentationFor(job.data).name || t("common.notProvided")}</strong>
+                {job.data.company.id ? <Link className="detail-company-identity__link" to={`/companies/${job.data.company.id}`}>
+                  <CompanyLogo job={job.data} size="detail" />
+                  <strong>{companyPresentationFor(job.data).name || t("common.notProvided")}</strong>
+                </Link> : <>
+                  <CompanyLogo job={job.data} size="detail" />
+                  <strong>{companyPresentationFor(job.data).name || t("common.notProvided")}</strong>
+                </>}
               </div>
               <h1>{job.data.title}</h1>
               <div className="detail-facts">

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Building2 } from "lucide-react";
 import type { JobSummary } from "../../api/models/job";
-import { companyInitials, companyPresentationFor } from "../../lib/companyPresentation";
+import { companyMarkFor, companyPresentationFor } from "../../lib/companyPresentation";
 
 interface CompanyLogoProps {
   job: JobSummary;
@@ -9,15 +10,16 @@ interface CompanyLogoProps {
 
 export function CompanyLogo({ job, size = "list" }: CompanyLogoProps) {
   const presentation = companyPresentationFor(job);
+  const mark = companyMarkFor(presentation.name || job.company.name, presentation.logoUrl);
   const [failedUrl, setFailedUrl] = useState<string>();
-  const showLogo = Boolean(presentation.logoUrl && failedUrl !== presentation.logoUrl);
+  const showLogo = Boolean(mark.logoUrl && failedUrl !== mark.logoUrl);
 
   return (
     <span className={`company-logo company-logo--${size}`} aria-hidden="true">
       {showLogo ? (
-        <img src={presentation.logoUrl} alt="" onError={() => setFailedUrl(presentation.logoUrl)} />
+        <img src={mark.logoUrl} alt="" onError={() => setFailedUrl(mark.logoUrl)} />
       ) : (
-        <span>{companyInitials(presentation.name || job.company.name)}</span>
+        <Building2 size={22} />
       )}
     </span>
   );
