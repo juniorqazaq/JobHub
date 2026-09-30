@@ -21,6 +21,14 @@ type companySearchDTO struct {
 	TotalPages int                 `json:"total_pages"`
 }
 
+type companyVacancySearchDTO struct {
+	Items      []companies.Vacancy `json:"items"`
+	Page       int                 `json:"page"`
+	PageSize   int                 `json:"page_size"`
+	Total      int64               `json:"total"`
+	TotalPages int                 `json:"total_pages"`
+}
+
 type companyRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -33,6 +41,7 @@ type companyRequest struct {
 func RegisterCompanyRoutes(router *gin.Engine, store companies.Store, authService auth.Service, logger *slog.Logger, origin string) {
 	router.GET("/api/v1/companies", listCompanies(store, logger))
 	router.GET("/api/v1/companies/:id", getCompany(store, logger))
+	router.GET("/api/v1/companies/:id/jobs", listCompanyJobs(store, logger))
 	if authService == nil {
 		return
 	}
@@ -45,8 +54,20 @@ func RegisterCompanyRoutes(router *gin.Engine, store companies.Store, authServic
 	candidateRead := []gin.HandlerFunc{RequireRole(authService, auth.RoleJobSeeker)}
 	candidateWrite := []gin.HandlerFunc{RequireTrustedOrigin(origin), RequireRole(authService, auth.RoleJobSeeker), RequireCSRF(authService)}
 	router.GET("/api/v1/companies/:id/follow", append(candidateRead, companyFollowState(store, logger))...)
+	router.GET("/api/v1/companies/following", append(candidateRead, listFollowedCompanies(store, logger))...)
 	router.PUT("/api/v1/companies/:id/follow", append(candidateWrite, followCompany(store, logger))...)
 	router.DELETE("/api/v1/companies/:id/follow", append(candidateWrite, unfollowCompany(store, logger))...)
+}
+
+func listFollowedCompanies(store companies.Store, logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		items, err := store.ListFollowed(c.Request.Context(), currentUser(c).ID)
+		if err != nil {
+			writeCompanyError(c, logger, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"items": items})
+	}
 }
 
 func listCompanies(store companies.Store, logger *slog.Logger) gin.HandlerFunc {
@@ -85,6 +106,29 @@ func getCompany(store companies.Store, logger *slog.Logger) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, detail)
+	}
+}
+
+func listCompanyJobs(store companies.Store, logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		page, ok := positiveInt(c, "page", 1, 1, 100000)
+		if !ok {
+			return
+		}
+		pageSize, ok := positiveInt(c, "page_size", 20, 1, 100)
+		if !ok {
+			return
+		}
+		result, err := store.ListPublicJobs(c.Request.Context(), c.Param("id"), page, pageSize)
+		if err != nil {
+			writeCompanyError(c, logger, err)
+			return
+		}
+		totalPages := 0
+		if result.Total > 0 {
+			totalPages = int((result.Total + int64(pageSize) - 1) / int64(pageSize))
+		}
+		c.JSON(http.StatusOK, companyVacancySearchDTO{Items: result.Items, Page: page, PageSize: pageSize, Total: result.Total, TotalPages: totalPages})
 	}
 }
 

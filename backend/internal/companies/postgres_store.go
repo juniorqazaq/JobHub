@@ -25,6 +25,8 @@ func NewPostgresStore(pool *pgxpool.Pool, requireProductionPermissions bool) *Po
 const publicCompanyPredicate = `
 	c.status = 'active'
 	AND (
+		c.is_verified
+		OR
 		EXISTS (SELECT 1 FROM jobhub.company_memberships cm WHERE cm.company_id = c.id)
 		OR EXISTS (
 			SELECT 1 FROM jobhub.jobs j
@@ -36,6 +38,12 @@ const publicCompanyPredicate = `
 		)
 	)`
 
+const companySelectColumns = `c.id, c.name, COALESCE(c.description, ''), COALESCE(c.website_url, ''),
+	COALESCE(c.logo_url, ''), COALESCE(c.industry, ''), COALESCE(c.city, ''), c.is_verified,
+	(SELECT count(*) FROM jobhub.jobs j JOIN jobhub.job_sources s ON s.source = j.source
+	 WHERE j.company_id = c.id AND s.enabled AND (NOT $1::boolean OR s.production_permissions_confirmed) AND jobhub.job_is_public(j)) AS open_jobs_count,
+	(SELECT count(*) FROM jobhub.company_follows f WHERE f.company_id = c.id), c.created_at, c.updated_at`
+
 func (s *PostgresStore) Search(ctx context.Context, query string, page, pageSize int) (SearchResult, error) {
 	pattern := "%" + strings.TrimSpace(query) + "%"
 	countSQL := `SELECT count(*) FROM jobhub.companies c WHERE ` + publicCompanyPredicate + `
@@ -44,11 +52,7 @@ func (s *PostgresStore) Search(ctx context.Context, query string, page, pageSize
 	if err := s.pool.QueryRow(ctx, countSQL, s.requireProductionPermissions, pattern).Scan(&total); err != nil {
 		return SearchResult{}, fmt.Errorf("count companies: %w", err)
 	}
-	listSQL := `SELECT c.id, c.name, COALESCE(c.description, ''), COALESCE(c.website_url, ''),
-		COALESCE(c.logo_url, ''), COALESCE(c.industry, ''), COALESCE(c.city, ''), c.is_verified,
-		(SELECT count(*) FROM jobhub.jobs j JOIN jobhub.job_sources s ON s.source = j.source
-		 WHERE j.company_id = c.id AND s.enabled AND (NOT $1::boolean OR s.production_permissions_confirmed) AND jobhub.job_is_public(j)) AS open_jobs_count,
-		(SELECT count(*) FROM jobhub.company_follows f WHERE f.company_id = c.id), c.created_at, c.updated_at
+	listSQL := `SELECT ` + companySelectColumns + `
 		FROM jobhub.companies c WHERE ` + publicCompanyPredicate + `
 		AND ($2::text = '%%' OR c.name ILIKE $2 OR COALESCE(c.industry, '') ILIKE $2 OR COALESCE(c.city, '') ILIKE $2)
 		ORDER BY c.is_verified DESC, open_jobs_count DESC, c.name ASC
@@ -72,47 +76,83 @@ func (s *PostgresStore) Search(ctx context.Context, query string, page, pageSize
 	return SearchResult{Items: items, Total: total}, nil
 }
 
-func (s *PostgresStore) GetPublic(ctx context.Context, rawID string) (Detail, error) {
+func (s *PostgresStore) ListFollowed(ctx context.Context, rawCandidateID string) ([]Company, error) {
+	candidateID, err := parseUUID(rawCandidateID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	query := `SELECT ` + companySelectColumns + `
+		FROM jobhub.company_follows f
+		JOIN jobhub.companies c ON c.id = f.company_id
+		WHERE f.candidate_id = $2 AND ` + publicCompanyPredicate + `
+		ORDER BY f.created_at DESC, c.name ASC`
+	rows, err := s.pool.Query(ctx, query, s.requireProductionPermissions, candidateID)
+	if err != nil {
+		return nil, fmt.Errorf("list followed companies: %w", err)
+	}
+	defer rows.Close()
+	items := make([]Company, 0)
+	for rows.Next() {
+		item, err := scanCompany(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan followed company: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list followed companies rows: %w", err)
+	}
+	return items, nil
+}
+
+func (s *PostgresStore) GetPublic(ctx context.Context, rawID string) (Company, error) {
 	id, err := parseUUID(rawID)
 	if err != nil {
-		return Detail{}, ErrNotFound
+		return Company{}, ErrNotFound
 	}
-	companySQL := `SELECT c.id, c.name, COALESCE(c.description, ''), COALESCE(c.website_url, ''),
-		COALESCE(c.logo_url, ''), COALESCE(c.industry, ''), COALESCE(c.city, ''), c.is_verified,
-		(SELECT count(*) FROM jobhub.jobs j JOIN jobhub.job_sources s ON s.source = j.source
-		 WHERE j.company_id = c.id AND s.enabled AND (NOT $1::boolean OR s.production_permissions_confirmed) AND jobhub.job_is_public(j)),
-		(SELECT count(*) FROM jobhub.company_follows f WHERE f.company_id = c.id), c.created_at, c.updated_at
+	companySQL := `SELECT ` + companySelectColumns + `
 		FROM jobhub.companies c WHERE c.id = $2 AND ` + publicCompanyPredicate
 	company, err := scanCompany(s.pool.QueryRow(ctx, companySQL, s.requireProductionPermissions, id))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Detail{}, ErrNotFound
+		return Company{}, ErrNotFound
 	}
 	if err != nil {
-		return Detail{}, fmt.Errorf("get company: %w", err)
+		return Company{}, fmt.Errorf("get company: %w", err)
+	}
+	return company, nil
+}
+
+func (s *PostgresStore) ListPublicJobs(ctx context.Context, rawID string, page, pageSize int) (VacancySearchResult, error) {
+	id, err := parseUUID(rawID)
+	if err != nil {
+		return VacancySearchResult{}, ErrNotFound
 	}
 	jobsSQL := `SELECT j.id, j.title, COALESCE(j.location_raw, ''), COALESCE(j.canonical_city_id, ''),
 		COALESCE(j.work_mode, ''), COALESCE(j.employment_type, j.employment_type_raw, ''),
 		j.salary_min, j.salary_max, COALESCE(j.salary_currency, ''), COALESCE(j.salary_period, ''),
-		j.salary_visible, COALESCE(j.published_at, j.external_published_at, j.first_seen_at)
+		j.salary_visible, COALESCE(j.published_at, j.external_published_at, j.first_seen_at), j.source, s.display_name,
+		count(*) OVER()
 		FROM jobhub.jobs j JOIN jobhub.job_sources s ON s.source = j.source
 		WHERE j.company_id = $2 AND s.enabled
 		  AND (NOT $1::boolean OR s.production_permissions_confirmed)
 		  AND jobhub.job_is_public(j)
-		ORDER BY COALESCE(j.published_at, j.external_published_at, j.first_seen_at) DESC, j.id DESC`
-	rows, err := s.pool.Query(ctx, jobsSQL, s.requireProductionPermissions, id)
+		ORDER BY COALESCE(j.published_at, j.external_published_at, j.first_seen_at) DESC, j.id DESC
+		LIMIT $3 OFFSET $4`
+	rows, err := s.pool.Query(ctx, jobsSQL, s.requireProductionPermissions, id, pageSize, (page-1)*pageSize)
 	if err != nil {
-		return Detail{}, fmt.Errorf("list company jobs: %w", err)
+		return VacancySearchResult{}, fmt.Errorf("list company jobs: %w", err)
 	}
 	defer rows.Close()
 	items := make([]Vacancy, 0)
+	var total int64
 	for rows.Next() {
 		var item Vacancy
 		var jobID pgtype.UUID
 		var salaryMin, salaryMax pgtype.Numeric
 		var published pgtype.Timestamptz
 		if err := rows.Scan(&jobID, &item.Title, &item.Location, &item.CityID, &item.WorkMode, &item.EmploymentType,
-			&salaryMin, &salaryMax, &item.SalaryCurrency, &item.SalaryPeriod, &item.SalaryVisible, &published); err != nil {
-			return Detail{}, fmt.Errorf("scan company job: %w", err)
+			&salaryMin, &salaryMax, &item.SalaryCurrency, &item.SalaryPeriod, &item.SalaryVisible, &published, &item.Source, &item.SourceName, &total); err != nil {
+			return VacancySearchResult{}, fmt.Errorf("scan company job: %w", err)
 		}
 		item.ID = formatUUID(jobID)
 		item.SalaryMin = numericValue(salaryMin)
@@ -124,9 +164,16 @@ func (s *PostgresStore) GetPublic(ctx context.Context, rawID string) (Detail, er
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return Detail{}, fmt.Errorf("list company jobs rows: %w", err)
+		return VacancySearchResult{}, fmt.Errorf("list company jobs rows: %w", err)
 	}
-	return Detail{Company: company, Jobs: items}, nil
+	if len(items) == 0 {
+		company, err := s.GetPublic(ctx, rawID)
+		if err != nil {
+			return VacancySearchResult{}, err
+		}
+		total = company.OpenJobsCount
+	}
+	return VacancySearchResult{Items: items, Total: total}, nil
 }
 
 func (s *PostgresStore) GetForEmployer(ctx context.Context, rawUserID string) (Company, error) {

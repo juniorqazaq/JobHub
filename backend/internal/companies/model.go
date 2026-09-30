@@ -36,15 +36,17 @@ type Vacancy struct {
 	SalaryPeriod   string     `json:"salary_period,omitempty"`
 	SalaryVisible  bool       `json:"salary_visible"`
 	PublishedAt    *time.Time `json:"published_at,omitempty"`
-}
-
-type Detail struct {
-	Company Company   `json:"company"`
-	Jobs    []Vacancy `json:"jobs"`
+	Source         string     `json:"source"`
+	SourceName     string     `json:"source_name"`
 }
 
 type SearchResult struct {
 	Items []Company
+	Total int64
+}
+
+type VacancySearchResult struct {
+	Items []Vacancy
 	Total int64
 }
 
@@ -59,7 +61,9 @@ type UpdateInput struct {
 
 type Store interface {
 	Search(context.Context, string, int, int) (SearchResult, error)
-	GetPublic(context.Context, string) (Detail, error)
+	ListFollowed(context.Context, string) ([]Company, error)
+	GetPublic(context.Context, string) (Company, error)
+	ListPublicJobs(context.Context, string, int, int) (VacancySearchResult, error)
 	GetForEmployer(context.Context, string) (Company, error)
 	UpdateForEmployer(context.Context, string, UpdateInput) (Company, error)
 	IsFollowing(context.Context, string, string) (bool, error)
